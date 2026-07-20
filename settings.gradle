@@ -1,0 +1,9 @@
+pluginManagement {
+    repositories {
+        maven { url = "https://maven.minecraftforge.net/" }
+        maven { url = "https://repo.maven.apache.org/maven2/" }
+        gradlePluginPortal()
+    }
+}
+
+rootProject.name = "webinterface"

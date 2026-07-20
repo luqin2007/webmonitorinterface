@@ -1,0 +1,21 @@
+# Gradle/Minecraft build outputs
+build/
+run/
+.gradle/
+*.log
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+eclipse/
+.out/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Generated mods.toml cache but keep source
+*.toml~
