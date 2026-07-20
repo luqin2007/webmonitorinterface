@@ -3,12 +3,13 @@ loaderVersion="[47,)"
 license="MIT"
 
 [[mods]]
-modId="webinterface"
+modId="web_monitor_interface"
 version="1.0.0"
-displayName="WebInterface"
+displayName="Web Monitor Interface"
 logoFile="webinterface.png"
 credits=""
 authors="example"
 description='''
-Provides HTTP and WebSocket API for Minecraft server data access.
+Provides HTTP and WebSocket API for Minecraft server data monitoring.
+Players authenticate with API keys generated via /webmonitor key generate.
 '''

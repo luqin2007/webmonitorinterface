@@ -1,8 +1,8 @@
 package com.example.webinterface.web.handler;
 
-import com.example.webinterface.WebInterfaceMod;
-import com.example.webinterface.web.auth.AuthManager;
-import com.example.webinterface.web.auth.Session;
+import com.example.webinterface.WebMonitorMod;
+import com.example.webinterface.security.ApiKey;
+import com.example.webinterface.security.KeyManager;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -13,24 +13,25 @@ import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.codec.http.websocketx.*;
 import net.minecraftforge.server.ServerLifecycleHooks;
 
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
-/** Per-channel wildcard subscriptions for event delivery. */
+/** Per-channel wildcard subscriptions for event delivery. Key auth on dedicated servers. */
 public final class WebSocketHandler extends SimpleChannelInboundHandler<WebSocketFrame> {
 
     private static final Gson GSON = new Gson();
     private static final Set<Channel> ACTIVE_CHANNELS = new CopyOnWriteArraySet<>();
     private static final ConcurrentHashMap<Channel, Set<String>> SUBSCRIPTIONS = new ConcurrentHashMap<>();
-    private static final ConcurrentHashMap<Channel, Session> SESSIONS = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<Channel, ApiKey> AUTHED = new ConcurrentHashMap<>();
 
-    private final AuthManager authManager;
+    private final KeyManager keyManager;
 
-    public WebSocketHandler(AuthManager authManager) {
-        this.authManager = authManager;
+    public WebSocketHandler(KeyManager keyManager) {
+        this.keyManager = keyManager;
     }
 
     @Override
@@ -44,7 +45,7 @@ public final class WebSocketHandler extends SimpleChannelInboundHandler<WebSocke
         Channel channel = ctx.channel();
         ACTIVE_CHANNELS.remove(channel);
         SUBSCRIPTIONS.remove(channel);
-        SESSIONS.remove(channel);
+        AUTHED.remove(channel);
     }
 
     @Override
@@ -58,14 +59,16 @@ public final class WebSocketHandler extends SimpleChannelInboundHandler<WebSocke
     }
 
     private void handle(ChannelHandlerContext ctx, String text) {
-        Session session = SESSIONS.get(ctx.channel());
         try {
             JsonObject request = GSON.fromJson(text, JsonObject.class);
             if (request == null) { reply(ctx, "ack", false, "Invalid JSON message"); return; }
             String action = request.has("action") ? request.get("action").getAsString() : "";
-            // Per-message auth check for sensitive actions
-            if ("login".equals(action)) {
-                handleLogin(ctx, request);
+            if ("auth".equals(action)) {
+                handleAuth(ctx, request);
+                return;
+            }
+            if (requiresAuth() && !AUTHED.containsKey(ctx.channel())) {
+                reply(ctx, "ack", false, "API key required. Send {\"action\":\"auth\",\"key\":\"...\"}");
                 return;
             }
             switch (action) {
@@ -73,22 +76,15 @@ public final class WebSocketHandler extends SimpleChannelInboundHandler<WebSocke
                 case "unsubscribe" -> update(ctx, request, false);
                 case "ping" -> reply(ctx, "pong", true, (JsonObject) null);
                 case "publish" -> {
-                    if (session == null) { reply(ctx, "ack", false, "Publish requires authentication"); return; }
                     String event = request.has("event") ? request.get("event").getAsString() : "";
-                    if (!event.startsWith("custom:")) { reply(ctx, "ack", false, "Only custom: events may be published"); return; }
+                    if (!event.startsWith("custom:")) {
+                        reply(ctx, "ack", false, "Only custom: events may be published");
+                        return;
+                    }
                     JsonObject data = request.has("data") && request.get("data").isJsonObject()
                             ? request.getAsJsonObject("data") : new JsonObject();
                     broadcast(GSON.toJson(eventPayload(event, data)));
                     reply(ctx, "ack", true, (JsonObject) null);
-                }
-                case "whoami" -> {
-                    JsonObject data = new JsonObject();
-                    data.addProperty("authenticated", session != null);
-                    if (session != null) {
-                        data.addProperty("username", session.getUsername());
-                        data.addProperty("level", session.getLevel());
-                    }
-                    reply(ctx, "ack", true, data);
                 }
                 default -> reply(ctx, "ack", false, "Unknown action: " + action);
             }
@@ -97,20 +93,27 @@ public final class WebSocketHandler extends SimpleChannelInboundHandler<WebSocke
         }
     }
 
-    private void handleLogin(ChannelHandlerContext ctx, JsonObject request) {
-        if (authManager == null) { reply(ctx, "ack", false, "Auth subsystem not initialized"); return; }
-        if (!authManager.isAuthEnabled()) { reply(ctx, "ack", false, "Auth disabled on this server"); return; }
-        String username = request.has("username") ? request.get("username").getAsString() : "";
-        String password = request.has("password") ? request.get("password").getAsString() : "";
-        if (username.isBlank() || password.isBlank()) { reply(ctx, "ack", false, "username and password are required"); return; }
-        Session session = authManager.login(username, password);
-        if (session == null) { reply(ctx, "ack", false, "Invalid credentials"); return; }
-        SESSIONS.put(ctx.channel(), session);
+    private void handleAuth(ChannelHandlerContext ctx, JsonObject request) {
+        if (keyManager == null) { reply(ctx, "ack", false, "Key manager not ready"); return; }
+        if (!requiresAuth()) {
+            reply(ctx, "ack", true, "Auth not required on this server");
+            return;
+        }
+        String key = request.has("key") ? request.get("key").getAsString() : "";
+        Optional<ApiKey> apiKey = keyManager.get(key);
+        if (apiKey.isEmpty()) {
+            reply(ctx, "ack", false, "Invalid API key");
+            return;
+        }
+        AUTHED.put(ctx.channel(), apiKey.get());
         JsonObject data = new JsonObject();
-        data.addProperty("token", session.getToken());
-        data.addProperty("username", session.getUsername());
-        data.addProperty("level", session.getLevel());
+        data.addProperty("owner", apiKey.get().getOwnerName());
+        data.addProperty("comment", apiKey.get().getComment());
         reply(ctx, "ack", true, data);
+    }
+
+    private boolean requiresAuth() {
+        return keyManager != null && keyManager.isAuthRequired();
     }
 
     private void update(ChannelHandlerContext ctx, JsonObject request, boolean add) {
@@ -130,7 +133,6 @@ public final class WebSocketHandler extends SimpleChannelInboundHandler<WebSocke
         JsonArray values = new JsonArray();
         subscriptions.forEach(values::add);
         data.add("subscriptions", values);
-        data.addProperty("session", SESSIONS.get(ctx.channel()) != null);
         reply(ctx, "ack", true, data);
     }
 
@@ -144,15 +146,13 @@ public final class WebSocketHandler extends SimpleChannelInboundHandler<WebSocke
         try {
             JsonObject event = GSON.fromJson(jsonEvent, JsonObject.class);
             String name = event.has("event") ? event.get("event").getAsString() : "";
-            int tick = net.minecraftforge.server.ServerLifecycleHooks.getCurrentServer() == null ? 0
-                    : net.minecraftforge.server.ServerLifecycleHooks.getCurrentServer().getTickCount();
             for (Channel channel : ACTIVE_CHANNELS) {
                 if (channel.isActive() && matches(channel, name)) {
                     channel.writeAndFlush(new TextWebSocketFrame(jsonEvent));
                 }
             }
         } catch (Exception e) {
-            WebInterfaceMod.LOGGER.warn("[WS] Refused malformed event payload", e);
+            WebMonitorMod.LOGGER.warn("[WS] Refused malformed event payload", e);
         }
     }
 
@@ -194,7 +194,7 @@ public final class WebSocketHandler extends SimpleChannelInboundHandler<WebSocke
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-        WebInterfaceMod.LOGGER.error("[WS] Exception", cause);
+        WebMonitorMod.LOGGER.error("[WS] Exception", cause);
         ctx.close();
     }
 }

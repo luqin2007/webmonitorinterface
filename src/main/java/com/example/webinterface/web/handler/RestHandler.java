@@ -1,18 +1,16 @@
 package com.example.webinterface.web.handler;
 
-import com.example.webinterface.WebInterfaceMod;
+import com.example.webinterface.WebMonitorMod;
 import com.example.webinterface.model.ServerState;
-import com.example.webinterface.web.api.AuthApi;
+import com.example.webinterface.security.ApiKey;
+import com.example.webinterface.security.KeyManager;
 import com.example.webinterface.web.api.BatchApi;
 import com.example.webinterface.web.api.BlockApi;
 import com.example.webinterface.web.api.CapabilityApi;
 import com.example.webinterface.web.api.EntityApi;
-import com.example.webinterface.web.auth.AuthManager;
-import com.example.webinterface.web.auth.Session;
 import com.example.webinterface.web.event.events.EventCatalog;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelFutureListener;
@@ -26,29 +24,24 @@ import net.minecraftforge.server.ServerLifecycleHooks;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Exact REST routing for the public v1 API.
- *
- * <p>Routes marked "AUTH" require a valid Bearer token. Public routes (status/tps/worlds
- * and main block/entity read APIs) honour {@link AuthManager#isAllowAnonymousRead()}.
- * Write/invoke operations reject anonymous access.
- *
- * <p>Headers consumed:
+ * REST v1 routing. Auth is API-key based:
  * <ul>
- *   <li>{@code Authorization: Bearer <token>}</li>
- *   <li>{@code X-Auth-Token: <token>} (alternative)</li>
- *   <li>{@code ?token=<token>} (alternative)</li>
+ *   <li>Integrated / singleplayer: no key required</li>
+ *   <li>Dedicated server: key required (unless config disables it)</li>
  * </ul>
+ * Pass key via {@code Authorization: Bearer <key>}, {@code X-Api-Key}, or {@code ?key=}.
  */
 public final class RestHandler extends SimpleChannelInboundHandler<FullHttpRequest> {
 
     private static final Gson GSON = new Gson();
+    private final KeyManager keyManager;
+    private final ConcurrentHashMap<String, long[]> rateWindows = new ConcurrentHashMap<>();
 
-    private final AuthManager authManager;
-
-    public RestHandler(AuthManager authManager) {
-        this.authManager = authManager;
+    public RestHandler(KeyManager keyManager) {
+        this.keyManager = keyManager;
     }
 
     @Override
@@ -63,20 +56,27 @@ public final class RestHandler extends SimpleChannelInboundHandler<FullHttpReque
         }
         QueryStringDecoder query = new QueryStringDecoder(request.uri());
         try {
-            AuthContext auth = resolveAuth(request, query);
-            JsonObject response = route(request.method(), query.path(), query, body(request), auth);
-            applyRateLimit(auth, response);
+            Optional<ApiKey> apiKey = resolveKey(request, query);
+            if (keyManager != null && keyManager.isAuthRequired() && apiKey.isEmpty()) {
+                send(ctx, HttpResponseStatus.UNAUTHORIZED,
+                        GSON.toJson(envelope(error(2001, "API key required. Use /webmonitor key generate"))));
+                return;
+            }
+            if (apiKey.isPresent() && isRateLimited(apiKey.get().getKey())) {
+                send(ctx, HttpResponseStatus.TOO_MANY_REQUESTS,
+                        GSON.toJson(envelope(error(4001, "rate limit exceeded"))));
+                return;
+            }
+            JsonObject response = route(request.method(), query.path(), query, body(request));
             send(ctx, status(response), GSON.toJson(envelope(response)));
-        } catch (RateLimitedException e) {
-            send(ctx, HttpResponseStatus.TOO_MANY_REQUESTS, GSON.toJson(envelope(error(4001, "rate limit exceeded"))));
         } catch (Exception e) {
-            WebInterfaceMod.LOGGER.error("[REST] Internal error for {} {}", request.method(), request.uri(), e);
-            send(ctx, HttpResponseStatus.INTERNAL_SERVER_ERROR, errorJson(3002, "Internal error: " + e.getMessage()));
+            WebMonitorMod.LOGGER.error("[REST] Internal error for {} {}", request.method(), request.uri(), e);
+            send(ctx, HttpResponseStatus.INTERNAL_SERVER_ERROR,
+                    errorJson(3002, "Internal error: " + e.getMessage()));
         }
     }
 
-    private JsonObject route(HttpMethod method, String path, QueryStringDecoder q, JsonObject body, AuthContext auth) {
-        // ====== Base endpoints (public) ======
+    private JsonObject route(HttpMethod method, String path, QueryStringDecoder q, JsonObject body) {
         if (method.equals(HttpMethod.GET) && path.equals("/api/v1/status")) {
             return cachedRead("status", () -> {
                 JsonObject d = new JsonObject();
@@ -86,7 +86,10 @@ public final class RestHandler extends SimpleChannelInboundHandler<FullHttpReque
                 d.addProperty("max_players", s == null ? 0 : s.getMaxPlayers());
                 d.addProperty("motd", s == null ? "" : s.getMotd());
                 d.addProperty("version", s == null ? "" : s.getServerVersion());
-                d.addProperty("auth_enabled", authManager != null && authManager.isAuthEnabled());
+                d.addProperty("dedicated", s != null && s.isDedicatedServer());
+                d.addProperty("auth_required", keyManager != null && keyManager.isAuthRequired());
+                d.addProperty("web_running", WebMonitorMod.getWebServer() != null && WebMonitorMod.getWebServer().isRunning());
+                d.addProperty("web_port", WebMonitorMod.getWebServer() == null ? -1 : WebMonitorMod.getWebServer().getBoundPort());
                 return ok(d);
             });
         }
@@ -121,17 +124,18 @@ public final class RestHandler extends SimpleChannelInboundHandler<FullHttpReque
         }
 
         if (method.equals(HttpMethod.POST) && path.equals("/api/v1/blocks/batch"))
-            return requireRead(auth, () -> BatchApi.query(body, false));
+            return BatchApi.query(body, false);
         if (method.equals(HttpMethod.POST) && path.equals("/api/v1/blocks/batch/count"))
-            return requireRead(auth, () -> BatchApi.query(body, true));
+            return BatchApi.query(body, true);
 
         if (method.equals(HttpMethod.GET) && path.equals("/api/v1/capabilities"))
-            return requireRead(auth, () -> CapabilityApi.listCapabilities(param(q, "dim", "minecraft:overworld"), integer(q, "x"), integer(q, "y"), integer(q, "z")));
+            return CapabilityApi.listCapabilities(param(q, "dim", "minecraft:overworld"),
+                    integer(q, "x"), integer(q, "y"), integer(q, "z"));
 
         if (path.startsWith("/api/v1/world/"))
-            return worldRoute(method, path, q, body, auth);
+            return worldRoute(method, path, q);
         if (path.startsWith("/api/v1/capabilities/"))
-            return capabilityRoute(method, path, q, body, auth);
+            return capabilityRoute(method, path, q);
 
         if (path.equals("/api/v1/events/catalog") && method.equals(HttpMethod.GET)) {
             JsonArray arr = new JsonArray();
@@ -146,78 +150,35 @@ public final class RestHandler extends SimpleChannelInboundHandler<FullHttpReque
             return ok(d);
         }
 
-        // ====== Unified auth namespace ======
-        if (path.startsWith("/api/v1/auth/")) return authRoute(method, path, q, body, auth);
-        // ====== Legacy /permissions/* - now redirects to /auth/ ======
-        if (path.startsWith("/api/v1/permissions/methods") && method.equals(HttpMethod.GET))
-            return AuthApi.methods(authManager, auth.session);
-        if (path.startsWith("/api/v1/permissions") && method.equals(HttpMethod.GET))
-            return AuthApi.viewPermissions(authManager, auth.session);
-        if (path.startsWith("/api/v1/permissions") && method.equals(HttpMethod.PUT))
-            return AuthApi.updatePermissions(authManager, auth.session, body);
-
         return error(1002, "Not found: " + path);
     }
 
-    private JsonObject authRoute(HttpMethod method, String path, QueryStringDecoder q, JsonObject body, AuthContext auth) {
-        String sub = path.substring("/api/v1/auth/".length());
-        if (sub.equals("login") && method.equals(HttpMethod.POST))
-            return AuthApi.login(authManager, body);
-        if (sub.equals("logout") && method.equals(HttpMethod.POST))
-            return AuthApi.logout(authManager, auth.rawToken);
-        if (sub.equals("me") && method.equals(HttpMethod.GET))
-            return AuthApi.me(authManager, auth.session);
-        if (sub.equals("methods") && method.equals(HttpMethod.GET))
-            return AuthApi.methods(authManager, auth.session);
-        if (sub.equals("permissions") && method.equals(HttpMethod.GET))
-            return AuthApi.viewPermissions(authManager, auth.session);
-        if (sub.equals("permissions") && method.equals(HttpMethod.PUT))
-            return AuthApi.updatePermissions(authManager, auth.session, body);
-        if (sub.equals("refresh") && method.equals(HttpMethod.POST))
-            return AuthApi.refresh(authManager, auth.session);
-        if (sub.equals("sessions") && method.equals(HttpMethod.GET)) {
-            if (auth.session.isEmpty() || !auth.session.get().canManagePermissions())
-                return error(2003, "op level required");
-            JsonObject d = new JsonObject();
-            d.addProperty("active_sessions", authManager.getActiveSessionCount());
-            JsonArray users = authManager.listUsers();
-            d.add("users", users);
-            return ok(d);
-        }
-        return error(1002, "Not found: " + path);
-    }
-
-    private JsonObject capabilityRoute(HttpMethod method, String path, QueryStringDecoder q, JsonObject body, AuthContext auth) {
+    private JsonObject capabilityRoute(HttpMethod method, String path, QueryStringDecoder q) {
         String[] p = path.split("/");
         if (p.length < 6) return error(1002, "Not found: " + path);
         String target = p[4], capability = p[5];
         if (!"block".equals(target) && !"blockentity".equals(target))
             return error(1001, "Only block capability references are supported");
-        String dimInit = param(q, "dim", "minecraft:overworld");
-        int xInit = integer(q, "x"), yInit = integer(q, "y"), zInit = integer(q, "z");
+        // execute / write endpoints removed
+        if (path.endsWith("/execute") || method.equals(HttpMethod.POST)) {
+            return error(2002, "Capability mutations are disabled (monitor-only API)");
+        }
+        String dim = param(q, "dim", "minecraft:overworld");
+        int x = integer(q, "x"), y = integer(q, "y"), z = integer(q, "z");
         String ref = param(q, "ref", null);
-        String dim = dimInit;
-        int x = xInit, y = yInit, z = zInit;
         if (ref != null) {
             String[] parts = ref.split(",", 4);
             if (parts.length == 4) {
                 dim = parts[0]; x = parseInt(parts[1]); y = parseInt(parts[2]); z = parseInt(parts[3]);
             }
         }
-        final String fDim = dim;
-        final int fx = x, fy = y, fz = z;
-        if (path.endsWith("/execute") && method.equals(HttpMethod.POST)) {
-            return requireWrite(auth, "CapabilityApi.execute", () ->
-                    CapabilityApi.execute(fDim, fx, fy, fz, capability, string(body, "operation", null), body));
-        }
         if (method.equals(HttpMethod.GET)) {
-            return requireRead(auth, () ->
-                    CapabilityApi.getCapability(fDim, fx, fy, fz, capability));
+            return CapabilityApi.getCapability(dim, x, y, z, capability);
         }
         return error(1002, "Not found: " + path);
     }
 
-    private JsonObject worldRoute(HttpMethod method, String path, QueryStringDecoder q, JsonObject body, AuthContext auth) {
+    private JsonObject worldRoute(HttpMethod method, String path, QueryStringDecoder q) {
         String[] p = path.split("/");
         if (p.length < 6) return error(1002, "Not found: " + path);
         String dim = p[4];
@@ -225,75 +186,58 @@ public final class RestHandler extends SimpleChannelInboundHandler<FullHttpReque
         String rest = path.substring(("/api/v1/world/" + dim).length());
 
         if (rest.equals("/block") && method.equals(HttpMethod.GET))
-            return requireRead(auth, () -> cachedRead("block|" + dim + "|" + x + "|" + y + "|" + z,
-                    () -> BlockApi.getBlock(dim, x, y, z)));
+            return cachedRead("block|" + dim + "|" + x + "|" + y + "|" + z,
+                    () -> BlockApi.getBlock(dim, x, y, z));
         if (rest.equals("/block/property") && method.equals(HttpMethod.GET))
-            return requireRead(auth, () -> BlockApi.getProperty(dim, x, y, z, param(q, "key", null)));
+            return BlockApi.getProperty(dim, x, y, z, param(q, "key", null));
         if (rest.equals("/block/blockentity") && method.equals(HttpMethod.GET))
-            return requireRead(auth, () -> BlockApi.getBlockEntityNbt(dim, x, y, z, param(q, "path", null)));
-        if (rest.equals("/block/blockentity/invoke") && method.equals(HttpMethod.POST))
-            return requireWrite(auth, "BlockEntity.invoke", () ->
-                    BlockApi.invokeBlockEntity(dim, x, y, z, string(body, "method", null), array(body, "args"), auth.session));
+            return BlockApi.getBlockEntityNbt(dim, x, y, z, param(q, "path", null));
+        if (rest.equals("/block/blockentity/invoke") || rest.endsWith("/invoke"))
+            return error(2002, "Block entity method invocation is disabled (monitor-only API)");
         if (rest.equals("/block/capability") && method.equals(HttpMethod.GET))
-            return requireRead(auth, () -> CapabilityApi.getCapability(dim, x, y, z, param(q, "cap", null)));
+            return CapabilityApi.getCapability(dim, x, y, z, param(q, "cap", null));
         if (rest.equals("/entities/aabb") && method.equals(HttpMethod.GET))
-            return requireRead(auth, () -> EntityApi.getEntitiesInAABB(dim,
+            return EntityApi.getEntitiesInAABB(dim,
                     decimal(q, "minX"), decimal(q, "minY"), decimal(q, "minZ"),
                     decimal(q, "maxX"), decimal(q, "maxY"), decimal(q, "maxZ"),
-                    param(q, "type", null), Math.max(1, integer(q, "limit", 50))));
+                    param(q, "type", null), Math.max(1, integer(q, "limit", 50)));
         if (rest.startsWith("/entity/") && method.equals(HttpMethod.GET)) {
             int eid = parseInt(rest.substring(8));
-            return requireRead(auth, () -> EntityApi.getEntity(dim, eid));
+            return EntityApi.getEntity(dim, eid);
         }
         if (rest.startsWith("/player/") && method.equals(HttpMethod.GET))
-            return requireRead(auth, () -> EntityApi.getPlayer(dim, rest.substring(8)));
+            return EntityApi.getPlayer(dim, rest.substring(8));
         return error(1002, "Not found: " + path);
     }
 
-    // ============ Auth helpers ============
-
-    private AuthContext resolveAuth(FullHttpRequest request, QueryStringDecoder query) {
-        if (authManager == null) return new AuthContext(Optional.empty(), null);
-        String token = null;
+    private Optional<ApiKey> resolveKey(FullHttpRequest request, QueryStringDecoder query) {
+        if (keyManager == null) return Optional.empty();
+        String key = null;
         String header = request.headers().get(HttpHeaderNames.AUTHORIZATION);
-        if (header != null && header.startsWith("Bearer ")) token = header.substring(7).trim();
-        if (token == null || token.isBlank()) token = request.headers().get("X-Auth-Token");
-        if (token == null || token.isBlank()) token = param(query, "token", null);
-        Optional<Session> session = authManager.getSession(token);
-        return new AuthContext(session, token);
+        if (header != null && header.startsWith("Bearer ")) key = header.substring(7).trim();
+        if (key == null || key.isBlank()) key = request.headers().get("X-Api-Key");
+        if (key == null || key.isBlank()) key = request.headers().get("X-Auth-Token");
+        if (key == null || key.isBlank()) key = param(query, "key", null);
+        if (key == null || key.isBlank()) key = param(query, "token", null);
+        return keyManager.get(key);
     }
 
-    private void applyRateLimit(AuthContext auth, JsonObject response) {
-        if (auth == null || auth.session.isEmpty()) return;
-        // Anonymous doesn't get rate-limited here (endpoints reject anonymous writes anyway,
-        // anonymous reads don't bind to a per-session bucket). Use IP-based limit separately if needed.
-        if (!auth.session.get().tryRateLimit()) {
-            response.addProperty("code", 4001);
-            response.addProperty("msg", "rate limit exceeded");
+    /** Simple per-key sliding window: max N requests per 60s. */
+    private boolean isRateLimited(String key) {
+        int limit = WebMonitorMod.getConfig() == null ? 120 : WebMonitorMod.getConfig().getRateLimitPerMinute();
+        if (limit <= 0) return false;
+        long now = System.currentTimeMillis();
+        long[] window = rateWindows.computeIfAbsent(key, k -> new long[]{now, 0});
+        synchronized (window) {
+            if (now - window[0] >= 60_000L) {
+                window[0] = now;
+                window[1] = 0;
+            }
+            window[1]++;
+            return window[1] > limit;
         }
     }
 
-    /** Allow read if logged in OR anonymous read enabled. */
-    private JsonObject requireRead(AuthContext auth, RouteHandler route) {
-        if (auth == null) return route.run();
-        if (auth.session.isEmpty() && authManager != null && !authManager.isAllowAnonymousRead()) {
-            return error(2001, "Authentication required");
-        }
-        return route.run();
-    }
-
-    /** Write/invoke requires an actual session. The {@code methodKey} is checked against MethodGuard. */
-    private JsonObject requireWrite(AuthContext auth, String methodKey, RouteHandler route) {
-        if (auth == null || auth.session.isEmpty())
-            return error(2001, "Authentication required for write/invoke operations");
-        if (authManager != null) {
-            var check = authManager.getMethodGuard().check(auth.session.get().getLevel(), methodKey);
-            if (!check.allowed) return error(2002, "Method invocation denied: " + check.reason);
-        }
-        return route.run();
-    }
-
-    /** Cached read wrapper - uses ServerState 1-tick cache. */
     private JsonObject cachedRead(String cacheKey, RouteHandler loader) {
         return ServerState.get("rest:" + cacheKey, loader::run);
     }
@@ -301,10 +245,7 @@ public final class RestHandler extends SimpleChannelInboundHandler<FullHttpReque
     @FunctionalInterface
     private interface RouteHandler { JsonObject run(); }
 
-    private record AuthContext(Optional<Session> session, String rawToken) {}
-
-    // ============ Parsing helpers ============
-    private static final JsonObject body(FullHttpRequest r) {
+    private static JsonObject body(FullHttpRequest r) {
         String text = r.content().toString(CharsetUtil.UTF_8);
         if (text == null || text.isBlank()) return new JsonObject();
         try { return GSON.fromJson(text, JsonObject.class); } catch (Exception e) { return new JsonObject(); }
@@ -320,20 +261,10 @@ public final class RestHandler extends SimpleChannelInboundHandler<FullHttpReque
     private static double decimal(QueryStringDecoder q, String k) {
         try { return Double.parseDouble(param(q, k, "0")); } catch (NumberFormatException e) { return 0; }
     }
-    private static int integer(JsonObject o, String k, int d) {
-        return o != null && o.has(k) && o.get(k).isJsonPrimitive() ? o.get(k).getAsInt() : d;
-    }
-    private static String string(JsonObject o, String k, String d) {
-        return o != null && o.has(k) && o.get(k).isJsonPrimitive() ? o.get(k).getAsString() : d;
-    }
-    private static JsonArray array(JsonObject o, String k) {
-        return o != null && o.has(k) && o.get(k).isJsonArray() ? o.getAsJsonArray(k) : new JsonArray();
-    }
     private static int parseInt(String s) {
         try { return Integer.parseInt(s); } catch (NumberFormatException e) { return -1; }
     }
 
-    // ============ Envelope helpers ============
     private static JsonObject ok(JsonObject d) {
         JsonObject o = new JsonObject();
         o.addProperty("code", 0);
@@ -372,12 +303,8 @@ public final class RestHandler extends SimpleChannelInboundHandler<FullHttpReque
         r.headers().set(HttpHeaderNames.CONTENT_TYPE, "application/json; charset=UTF-8");
         r.headers().setInt(HttpHeaderNames.CONTENT_LENGTH, r.content().readableBytes());
         r.headers().set(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN, "*");
-        r.headers().set(HttpHeaderNames.ACCESS_CONTROL_ALLOW_METHODS, "GET,POST,PUT,DELETE,OPTIONS");
-        r.headers().set(HttpHeaderNames.ACCESS_CONTROL_ALLOW_HEADERS, "Authorization, X-Auth-Token, Content-Type");
+        r.headers().set(HttpHeaderNames.ACCESS_CONTROL_ALLOW_METHODS, "GET,POST,OPTIONS");
+        r.headers().set(HttpHeaderNames.ACCESS_CONTROL_ALLOW_HEADERS, "Authorization, X-Api-Key, X-Auth-Token, Content-Type");
         c.writeAndFlush(r).addListener(ChannelFutureListener.CLOSE);
-    }
-
-    private static final class RateLimitedException extends RuntimeException {
-        RateLimitedException() { super(null, null, false, false); }
     }
 }

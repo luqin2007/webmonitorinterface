@@ -4,30 +4,8 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
-import java.util.ArrayList;
-import java.util.List;
-
-/**
- * Batch block query API.
- * <p>POST /api/v1/blocks/batch         - query multiple positions, return blocks data
- * <p>POST /api/v1/blocks/batch/count   - count matched positions only
- *
- * <p>Body:
- * <pre>
- * {
- *   "dimension": "minecraft:overworld",
- *   "positions": [{"x":0,"y":64,"z":0}, {...}],
- *   "region": {"minX":0,"maxX":5,"minY":64,"maxY":64,"minZ":0,"maxZ":5},
- *   "filter": "minecraft:stone",
- *   "limit": 4096
- * }
- * </pre>
- *
- * <p>If both {@code positions} and {@code region} are provided, {@code region}
- * expands to positions (overriding positions array).
- */
+/** Batch block query API (read-only). */
 public final class BatchApi {
-
     private BatchApi() {}
 
     public static JsonObject query(JsonObject body, boolean countOnly) {
@@ -42,7 +20,7 @@ public final class BatchApi {
             int minY = integer(r, "minY", 0), maxY = integer(r, "maxY", 0);
             int minZ = integer(r, "minZ", 0), maxZ = integer(r, "maxZ", 0);
             int regionTotal = (maxX - minX + 1) * (maxY - minY + 1) * (maxZ - minZ + 1);
-            int regionCap = Math.min(regionTotal, 4096);
+            int regionCap = Math.min(Math.max(regionTotal, 0), 4096);
             positions = new JsonArray();
             outer:
             for (int x = minX; x <= maxX; x++) {
@@ -98,10 +76,12 @@ public final class BatchApi {
     private static String string(JsonObject o, String key, String fallback) {
         return o.has(key) && o.get(key).isJsonPrimitive() ? o.get(key).getAsString() : fallback;
     }
+
     private static int integer(JsonObject o, String key, int fallback) {
         if (!o.has(key) || !o.get(key).isJsonPrimitive()) return fallback;
-        try { return o.get(key).getAsInt(); } catch (NumberFormatException e) { return fallback; }
+        try { return o.get(key).getAsInt(); } catch (Exception e) { return fallback; }
     }
+
     public static JsonObject ok(JsonObject data) {
         JsonObject o = new JsonObject();
         o.addProperty("code", 0);
@@ -109,6 +89,7 @@ public final class BatchApi {
         o.add("data", data);
         return o;
     }
+
     public static JsonObject error(int code, String msg) {
         JsonObject o = new JsonObject();
         o.addProperty("code", code);

@@ -1,12 +1,17 @@
 package com.example.webinterface.web;
 
-import com.example.webinterface.WebInterfaceMod;
+import com.example.webinterface.WebMonitorMod;
 import com.example.webinterface.config.ModConfig;
-import com.example.webinterface.web.auth.AuthManager;
+import com.example.webinterface.security.KeyManager;
 import com.example.webinterface.web.handler.RestHandler;
 import com.example.webinterface.web.handler.WebSocketHandler;
 import io.netty.bootstrap.ServerBootstrap;
-import io.netty.channel.*;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelInitializer;
+import io.netty.channel.ChannelOption;
+import io.netty.channel.ChannelPipeline;
+import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.http.HttpObjectAggregator;
@@ -16,27 +21,34 @@ import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
 
 /**
- * 嵌入式 Netty HTTP + WebSocket 服务器
- * 复用 Forge 自带的 Netty 依赖，无需额外引入
+ * Embedded Netty HTTP + WebSocket server.
+ * Supports start/stop/restart on a chosen port.
  */
 public class WebServer {
 
     private final ModConfig config;
-    private final AuthManager authManager;
+    private final KeyManager keyManager;
     private EventLoopGroup bossGroup;
     private EventLoopGroup workerGroup;
     private ChannelFuture channelFuture;
     private volatile boolean running = false;
+    private volatile int boundPort = -1;
 
-    public WebServer(ModConfig config, AuthManager authManager) {
+    public WebServer(ModConfig config, KeyManager keyManager) {
         this.config = config;
-        this.authManager = authManager;
+        this.keyManager = keyManager;
     }
 
-    public void start() {
+    /**
+     * Start (or restart) on the given port.
+     * @return true if bind succeeded
+     */
+    public synchronized boolean start(int port) {
+        if (running) {
+            stop();
+        }
         bossGroup = new NioEventLoopGroup(1);
         workerGroup = new NioEventLoopGroup();
-
         try {
             ServerBootstrap bootstrap = new ServerBootstrap();
             bootstrap.group(bossGroup, workerGroup)
@@ -49,42 +61,45 @@ public class WebServer {
                             pipeline.addLast(new HttpServerCodec());
                             pipeline.addLast(new HttpObjectAggregator(65536));
                             pipeline.addLast(new WebSocketServerProtocolHandler("/ws"));
-                            pipeline.addLast(new RestHandler(authManager));
-                            pipeline.addLast(new WebSocketHandler(authManager));
+                            pipeline.addLast(new RestHandler(keyManager));
+                            pipeline.addLast(new WebSocketHandler(keyManager));
                         }
                     })
                     .option(ChannelOption.SO_BACKLOG, 128)
                     .childOption(ChannelOption.SO_KEEPALIVE, true);
 
-            channelFuture = bootstrap.bind(config.getBindAddress(), config.getPort()).sync();
+            String bind = config == null ? "127.0.0.1" : config.getBindAddress();
+            channelFuture = bootstrap.bind(bind, port).sync();
             running = true;
-
-            WebInterfaceMod.LOGGER.info("[WebServer] 监听 {}:{}", config.getBindAddress(), config.getPort());
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            WebInterfaceMod.LOGGER.error("[WebServer] 启动失败", e);
+            boundPort = port;
+            WebMonitorMod.LOGGER.info("[WebServer] listening on {}:{}", bind, port);
+            return true;
+        } catch (Exception e) {
+            WebMonitorMod.LOGGER.error("[WebServer] failed to start on port {}", port, e);
+            stop();
+            return false;
         }
     }
 
-    public void stop() {
+    public synchronized void stop() {
         running = false;
+        boundPort = -1;
         if (channelFuture != null) {
-            channelFuture.channel().close();
+            try { channelFuture.channel().close().syncUninterruptibly(); } catch (Exception ignored) {}
+            channelFuture = null;
         }
         if (bossGroup != null) {
             bossGroup.shutdownGracefully();
+            bossGroup = null;
         }
         if (workerGroup != null) {
             workerGroup.shutdownGracefully();
+            workerGroup = null;
         }
-        WebInterfaceMod.LOGGER.info("[WebServer] 已停止");
+        WebMonitorMod.LOGGER.info("[WebServer] stopped");
     }
 
-    public boolean isRunning() {
-        return running;
-    }
-
-    public AuthManager getAuthManager() {
-        return authManager;
-    }
+    public boolean isRunning() { return running; }
+    public int getBoundPort() { return boundPort; }
+    public KeyManager getKeyManager() { return keyManager; }
 }
