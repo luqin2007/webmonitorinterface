@@ -30,7 +30,6 @@ import java.util.List;
  *   <li>{@code /webmonitor key generate [<comment>]}</li>
  *   <li>{@code /webmonitor key delete <key>}</li>
  * </ul>
- * Also registers {@code /webmonitorinterface} as an alias for {@code server} subcommands.
  */
 public final class WebMonitorCommand {
 
@@ -38,16 +37,6 @@ public final class WebMonitorCommand {
     public void onRegisterCommands(RegisterCommandsEvent event) {
         CommandDispatcher<CommandSourceStack> d = event.getDispatcher();
         d.register(buildRoot("webmonitor"));
-        // Alias requested: /webmonitorinterface server start ...
-        d.register(Commands.literal("webmonitorinterface")
-                .then(Commands.literal("server")
-                        .requires(src -> src.hasPermission(4))
-                        .then(Commands.literal("start")
-                                .executes(this::serverStartDefault)
-                                .then(Commands.argument("port", IntegerArgumentType.integer(1024, 65535))
-                                        .executes(this::serverStartPort)))
-                        .then(Commands.literal("stop")
-                                .executes(this::serverStop))));
     }
 
     private com.mojang.brigadier.builder.LiteralArgumentBuilder<CommandSourceStack> buildRoot(String name) {
@@ -73,7 +62,7 @@ public final class WebMonitorCommand {
     }
 
     private int serverStartDefault(CommandContext<CommandSourceStack> ctx) {
-        int port = WebMonitorMod.getConfig() == null ? 8080 : WebMonitorMod.getConfig().getPort();
+        int port = WebMonitorMod.getConfig() == null ? 18080 : WebMonitorMod.getConfig().getPort();
         return doStart(ctx, port);
     }
 

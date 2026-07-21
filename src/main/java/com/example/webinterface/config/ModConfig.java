@@ -13,7 +13,7 @@ public class ModConfig {
 
     private static final ForgeConfigSpec.IntValue PORT = BUILDER
             .comment("Default HTTP/WS listen port")
-            .defineInRange("server.port", 8080, 1024, 65535);
+            .defineInRange("server.port", 18080, 1024, 65535);
 
     private static final ForgeConfigSpec.ConfigValue<String> BIND_ADDRESS = BUILDER
             .comment("Bind address. 127.0.0.1 = local only; 0.0.0.0 = all interfaces")
@@ -22,10 +22,6 @@ public class ModConfig {
     private static final ForgeConfigSpec.BooleanValue AUTO_START = BUILDER
             .comment("Automatically start the web server when the Minecraft server starts")
             .define("server.auto_start", true);
-
-    private static final ForgeConfigSpec.BooleanValue REQUIRE_KEY_ON_DEDICATED = BUILDER
-            .comment("Require API key on dedicated servers. Integrated/singleplayer never requires keys.")
-            .define("auth.require_key_on_dedicated", true);
 
     private static final ForgeConfigSpec.IntValue REST_RATE_LIMIT = BUILDER
             .comment("Max REST requests per key per minute (token bucket). 0 = unlimited")
@@ -48,7 +44,6 @@ public class ModConfig {
     public int getPort() { return PORT.get(); }
     public String getBindAddress() { return BIND_ADDRESS.get(); }
     public boolean isAutoStart() { return AUTO_START.get(); }
-    public boolean isRequireKeyOnDedicated() { return REQUIRE_KEY_ON_DEDICATED.get(); }
     public int getRateLimitPerMinute() { return REST_RATE_LIMIT.get(); }
     public int getTpsInterval() { return WS_TPS_INTERVAL.get(); }
     public int getMaxRate() { return WS_MAX_RATE.get(); }

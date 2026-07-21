@@ -113,7 +113,7 @@ public final class EntityApi {
             item.addProperty("slot", slot);
             item.addProperty("id", String.valueOf(ForgeRegistries.ITEMS.getKey(stack.getItem())));
             item.addProperty("count", stack.getCount());
-            if (stack.hasTag()) item.addProperty("nbt", stack.getTag().toString());
+            if (stack.hasTag()) item.add("nbt", NbtJson.toJson(stack.getTag()));
             array.add(item);
         }
         return array;

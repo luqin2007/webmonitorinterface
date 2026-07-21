@@ -1,8 +1,8 @@
 package com.example.webinterface.web.handler;
 
 import com.example.webinterface.WebMonitorMod;
-import com.example.webinterface.security.ApiKey;
 import com.example.webinterface.security.KeyManager;
+import com.example.webinterface.web.MinecraftThread;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -13,26 +13,19 @@ import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.codec.http.websocketx.*;
 import net.minecraftforge.server.ServerLifecycleHooks;
 
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
-/** Per-channel wildcard subscriptions for event delivery. Key auth on dedicated servers. */
+/** Per-channel wildcard subscriptions for event delivery. Upgrade authentication is handled before WebSocket framing. */
 public final class WebSocketHandler extends SimpleChannelInboundHandler<WebSocketFrame> {
 
     private static final Gson GSON = new Gson();
     private static final Set<Channel> ACTIVE_CHANNELS = new CopyOnWriteArraySet<>();
     private static final ConcurrentHashMap<Channel, Set<String>> SUBSCRIPTIONS = new ConcurrentHashMap<>();
-    private static final ConcurrentHashMap<Channel, ApiKey> AUTHED = new ConcurrentHashMap<>();
-
-    private final KeyManager keyManager;
-
-    public WebSocketHandler(KeyManager keyManager) {
-        this.keyManager = keyManager;
-    }
+    public WebSocketHandler(KeyManager keyManager) {}
 
     @Override
     public void channelActive(ChannelHandlerContext ctx) {
@@ -45,7 +38,6 @@ public final class WebSocketHandler extends SimpleChannelInboundHandler<WebSocke
         Channel channel = ctx.channel();
         ACTIVE_CHANNELS.remove(channel);
         SUBSCRIPTIONS.remove(channel);
-        AUTHED.remove(channel);
     }
 
     @Override
@@ -63,14 +55,6 @@ public final class WebSocketHandler extends SimpleChannelInboundHandler<WebSocke
             JsonObject request = GSON.fromJson(text, JsonObject.class);
             if (request == null) { reply(ctx, "ack", false, "Invalid JSON message"); return; }
             String action = request.has("action") ? request.get("action").getAsString() : "";
-            if ("auth".equals(action)) {
-                handleAuth(ctx, request);
-                return;
-            }
-            if (requiresAuth() && !AUTHED.containsKey(ctx.channel())) {
-                reply(ctx, "ack", false, "API key required. Send {\"action\":\"auth\",\"key\":\"...\"}");
-                return;
-            }
             switch (action) {
                 case "subscribe" -> update(ctx, request, true);
                 case "unsubscribe" -> update(ctx, request, false);
@@ -83,7 +67,7 @@ public final class WebSocketHandler extends SimpleChannelInboundHandler<WebSocke
                     }
                     JsonObject data = request.has("data") && request.get("data").isJsonObject()
                             ? request.getAsJsonObject("data") : new JsonObject();
-                    broadcast(GSON.toJson(eventPayload(event, data)));
+                    broadcast(GSON.toJson(MinecraftThread.call(() -> eventPayload(event, data))));
                     reply(ctx, "ack", true, (JsonObject) null);
                 }
                 default -> reply(ctx, "ack", false, "Unknown action: " + action);
@@ -91,29 +75,6 @@ public final class WebSocketHandler extends SimpleChannelInboundHandler<WebSocke
         } catch (Exception e) {
             reply(ctx, "ack", false, "Invalid message: " + e.getMessage());
         }
-    }
-
-    private void handleAuth(ChannelHandlerContext ctx, JsonObject request) {
-        if (keyManager == null) { reply(ctx, "ack", false, "Key manager not ready"); return; }
-        if (!requiresAuth()) {
-            reply(ctx, "ack", true, "Auth not required on this server");
-            return;
-        }
-        String key = request.has("key") ? request.get("key").getAsString() : "";
-        Optional<ApiKey> apiKey = keyManager.get(key);
-        if (apiKey.isEmpty()) {
-            reply(ctx, "ack", false, "Invalid API key");
-            return;
-        }
-        AUTHED.put(ctx.channel(), apiKey.get());
-        JsonObject data = new JsonObject();
-        data.addProperty("owner", apiKey.get().getOwnerName());
-        data.addProperty("comment", apiKey.get().getComment());
-        reply(ctx, "ack", true, data);
-    }
-
-    private boolean requiresAuth() {
-        return keyManager != null && keyManager.isAuthRequired();
     }
 
     private void update(ChannelHandlerContext ctx, JsonObject request, boolean add) {

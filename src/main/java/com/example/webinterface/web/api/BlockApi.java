@@ -51,7 +51,7 @@ public final class BlockApi {
         return error(1002, "Block state property not found: " + key);
     }
 
-    public static JsonObject getBlockEntityNbt(String dimension, int x, int y, int z, String path) {
+    public static JsonObject getBlockEntityNbt(String dimension, int x, int y, int z, String path, boolean snbt) {
         ServerLevel level = level(dimension);
         BlockPos pos = new BlockPos(x, y, z);
         BlockEntity be = level != null && level.hasChunkAt(pos) ? level.getBlockEntity(pos) : null;
@@ -67,11 +67,13 @@ public final class BlockApi {
             }
             JsonObject data = new JsonObject();
             data.addProperty("path", path);
-            data.addProperty("value", selected == null ? "null" : selected.toString());
+            if (snbt) data.addProperty("value", selected == null ? "null" : selected.toString());
+            else data.add("value", NbtJson.toJson(selected));
             return ok(data);
         }
         JsonObject data = new JsonObject();
-        data.addProperty("nbt", tag.toString());
+        if (snbt) data.addProperty("nbt", tag.toString());
+        else data.add("nbt", NbtJson.toJson(tag));
         return ok(data);
     }
 
@@ -91,7 +93,7 @@ public final class BlockApi {
         o.addProperty("exists", be != null);
         if (be != null) {
             o.addProperty("type", String.valueOf(ForgeRegistries.BLOCK_ENTITY_TYPES.getKey(be.getType())));
-            o.addProperty("nbt", be.saveWithFullMetadata().toString());
+            o.add("nbt", NbtJson.toJson(be.saveWithFullMetadata()));
         }
         return o;
     }

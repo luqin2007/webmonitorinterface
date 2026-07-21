@@ -8,6 +8,8 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import net.minecraft.server.MinecraftServer;
 import net.minecraftforge.fml.loading.FMLPaths;
+import net.minecraftforge.fml.loading.FMLEnvironment;
+import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.server.ServerLifecycleHooks;
 
 import java.io.IOException;
@@ -84,14 +86,12 @@ public final class KeyManager {
     public int size() { return keys.size(); }
 
     /**
-     * Dedicated servers require a valid key when config says so.
-     * Integrated / singleplayer never requires a key.
+     * Only a physical client process (integrated server / singleplayer) may use
+     * the monitor without a key. A physical dedicated-server process always
+     * requires a valid key.
      */
     public boolean isAuthRequired() {
-        MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
-        if (server == null) return true;
-        if (!server.isDedicatedServer()) return false;
-        return WebMonitorMod.getConfig() == null || WebMonitorMod.getConfig().isRequireKeyOnDedicated();
+        return FMLEnvironment.dist != Dist.CLIENT;
     }
 
     public boolean isValid(String key) {

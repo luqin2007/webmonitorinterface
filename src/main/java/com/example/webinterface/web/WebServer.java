@@ -4,6 +4,7 @@ import com.example.webinterface.WebMonitorMod;
 import com.example.webinterface.config.ModConfig;
 import com.example.webinterface.security.KeyManager;
 import com.example.webinterface.web.handler.RestHandler;
+import com.example.webinterface.web.handler.WebSocketAuthHandler;
 import com.example.webinterface.web.handler.WebSocketHandler;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.Channel;
@@ -60,6 +61,7 @@ public class WebServer {
                             ChannelPipeline pipeline = ch.pipeline();
                             pipeline.addLast(new HttpServerCodec());
                             pipeline.addLast(new HttpObjectAggregator(65536));
+                            pipeline.addLast(new WebSocketAuthHandler(keyManager));
                             pipeline.addLast(new WebSocketServerProtocolHandler("/ws"));
                             pipeline.addLast(new RestHandler(keyManager));
                             pipeline.addLast(new WebSocketHandler(keyManager));

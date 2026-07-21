@@ -8,6 +8,7 @@ import com.example.webinterface.web.api.BatchApi;
 import com.example.webinterface.web.api.BlockApi;
 import com.example.webinterface.web.api.CapabilityApi;
 import com.example.webinterface.web.api.EntityApi;
+import com.example.webinterface.web.MinecraftThread;
 import com.example.webinterface.web.event.events.EventCatalog;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
@@ -59,16 +60,17 @@ public final class RestHandler extends SimpleChannelInboundHandler<FullHttpReque
             Optional<ApiKey> apiKey = resolveKey(request, query);
             if (keyManager != null && keyManager.isAuthRequired() && apiKey.isEmpty()) {
                 send(ctx, HttpResponseStatus.UNAUTHORIZED,
-                        GSON.toJson(envelope(error(2001, "API key required. Use /webmonitor key generate"))));
+                        GSON.toJson(MinecraftThread.call(() -> envelope(error(2001, "API key required. Use /webmonitor key generate")))));
                 return;
             }
-            if (apiKey.isPresent() && isRateLimited(apiKey.get().getKey())) {
+            if (keyManager != null && keyManager.isAuthRequired() && apiKey.isPresent()
+                    && isRateLimited(apiKey.get().getKey())) {
                 send(ctx, HttpResponseStatus.TOO_MANY_REQUESTS,
-                        GSON.toJson(envelope(error(4001, "rate limit exceeded"))));
+                        GSON.toJson(MinecraftThread.call(() -> envelope(error(4001, "rate limit exceeded")))));
                 return;
             }
-            JsonObject response = route(request.method(), query.path(), query, body(request));
-            send(ctx, status(response), GSON.toJson(envelope(response)));
+            JsonObject response = MinecraftThread.call(() -> envelope(route(request.method(), query.path(), query, body(request))));
+            send(ctx, status(response), GSON.toJson(response));
         } catch (Exception e) {
             WebMonitorMod.LOGGER.error("[REST] Internal error for {} {}", request.method(), request.uri(), e);
             send(ctx, HttpResponseStatus.INTERNAL_SERVER_ERROR,
@@ -191,7 +193,9 @@ public final class RestHandler extends SimpleChannelInboundHandler<FullHttpReque
         if (rest.equals("/block/property") && method.equals(HttpMethod.GET))
             return BlockApi.getProperty(dim, x, y, z, param(q, "key", null));
         if (rest.equals("/block/blockentity") && method.equals(HttpMethod.GET))
-            return BlockApi.getBlockEntityNbt(dim, x, y, z, param(q, "path", null));
+            return BlockApi.getBlockEntityNbt(dim, x, y, z, param(q, "path", null), false);
+        if (rest.equals("/block/blockentity/snbt") && method.equals(HttpMethod.GET))
+            return BlockApi.getBlockEntityNbt(dim, x, y, z, param(q, "path", null), true);
         if (rest.equals("/block/blockentity/invoke") || rest.endsWith("/invoke"))
             return error(2002, "Block entity method invocation is disabled (monitor-only API)");
         if (rest.equals("/block/capability") && method.equals(HttpMethod.GET))

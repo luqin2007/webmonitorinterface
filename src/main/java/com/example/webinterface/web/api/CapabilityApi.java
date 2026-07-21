@@ -116,7 +116,7 @@ public final class CapabilityApi {
         JsonObject o = new JsonObject();
         o.addProperty("id", String.valueOf(ForgeRegistries.ITEMS.getKey(stack.getItem())));
         o.addProperty("count", stack.getCount());
-        if (stack.hasTag()) o.addProperty("nbt", stack.getTag().toString());
+        if (stack.hasTag()) o.add("nbt", NbtJson.toJson(stack.getTag()));
         return o;
     }
 
@@ -124,7 +124,7 @@ public final class CapabilityApi {
         JsonObject o = new JsonObject();
         o.addProperty("id", String.valueOf(ForgeRegistries.FLUIDS.getKey(stack.getFluid())));
         o.addProperty("amount", stack.getAmount());
-        if (stack.hasTag()) o.addProperty("nbt", stack.getTag().toString());
+        if (stack.hasTag()) o.add("nbt", NbtJson.toJson(stack.getTag()));
         return o;
     }
 
