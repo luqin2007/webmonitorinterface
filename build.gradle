@@ -113,8 +113,6 @@ sourceSets.main.resources { srcDir 'src/generated/resources' }
 
 jarJar.enable()
 
-
-
 repositories {
     // Put repositories for dependencies here
     // ForgeGradle automatically adds the Forge maven and Maven Central for you
@@ -155,17 +153,6 @@ dependencies {
     // http://www.gradle.org/docs/current/userguide/dependency_management.html
 }
 
-// Development runs load the mod from source directories, so include the embedded codec JAR as a third source root.
-def nettyHttpSourceRoot = providers.provider {
-    "${mod_id}%%${configurations.minecraftEmbed.singleFile.absolutePath}"
-}
-minecraft.runs.configureEach {
-    environment 'MOD_CLASSES', [
-            "${mod_id}%%${sourceSets.main.output.resourcesDir.absolutePath}",
-            "${mod_id}%%${sourceSets.main.output.classesDirs.singleFile.absolutePath}",
-            nettyHttpSourceRoot.get()
-    ].join(File.pathSeparator)
-}
 // This block of code expands all declared replace properties in the specified resource targets.
 // A missing property will result in an error. Properties are expanded using ${} Groovy notation.
 // When "copyIdeResources" is enabled, this will also run before the game launches in IDE environments.
@@ -225,5 +212,3 @@ publishing {
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8' // Use the UTF-8 charset for Java compilation
 }
-
-
