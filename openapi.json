@@ -125,7 +125,7 @@
     "/api/v1/world/{dim}/blockstate": {
       "get": {
         "summary": "获取方块状态属性",
-        "description": "返回单个方块状态属性的值。",
+        "description": "返回方块状态属性。不传 key 时返回完整状态（Mojang CODEC 编码），传 key 时返回 `{属性名: 值}`。key 可重复传递。",
         "tags": ["方块"],
         "security": [{ "bearerAuth": [] }],
         "parameters": [
@@ -133,7 +133,7 @@
           { "$ref": "#/components/parameters/X" },
           { "$ref": "#/components/parameters/Y" },
           { "$ref": "#/components/parameters/Z" },
-          { "$ref": "#/components/parameters/Key" }
+          { "name": "key", "in": "query", "required": false, "schema": { "type": "array", "items": { "type": "string" } }, "style": "form", "explode": true, "description": "方块状态属性名（可重复，如 ?key=facing&key=powered）" }
         ],
         "responses": {
           "200": {
@@ -146,7 +146,12 @@
                     {
                       "type": "object",
                       "properties": {
-                        "data": { "$ref": "#/components/schemas/BlockPropertyData" }
+                        "data": {
+                          "oneOf": [
+                            { "$ref": "#/components/schemas/BlockStateCodecData" },
+                            { "$ref": "#/components/schemas/BlockPropertyMapData" }
+                          ]
+                        }
                       }
                     }
                   ]
@@ -679,7 +684,6 @@
       "X": { "name": "x", "in": "query", "required": true, "schema": { "type": "integer" }, "description": "方块 X 坐标" },
       "Y": { "name": "y", "in": "query", "required": true, "schema": { "type": "integer" }, "description": "方块 Y 坐标" },
       "Z": { "name": "z", "in": "query", "required": true, "schema": { "type": "integer" }, "description": "方块 Z 坐标" },
-      "Key": { "name": "key", "in": "query", "required": true, "schema": { "type": "string" }, "description": "方块状态属性名称" },
       "Path": { "name": "path", "in": "query", "required": false, "schema": { "type": "string" }, "description": "点分隔的 NBT 路径（如 \"Items.0.tag\"）" },
       "Cap": { "name": "cap", "in": "query", "required": true, "schema": { "type": "string" }, "description": "能力名称：energy、items 或 fluid" },
       "EntityId": { "name": "entityId", "in": "path", "required": true, "schema": { "type": "integer" }, "description": "运行时实体 ID" },
@@ -773,12 +777,14 @@
           }
         }
       },
-      "BlockPropertyData": {
+      "BlockStateCodecData": {
         "type": "object",
-        "properties": {
-          "key": { "type": "string" },
-          "value": { "type": "string" }
-        }
+        "description": "Mojang CODEC 编码的完整方块状态（当不传 key 参数时返回）"
+      },
+      "BlockPropertyMapData": {
+        "type": "object",
+        "description": "指定属性名到值的映射（如 `{\"facing\": \"north\"}`），当传 key 参数时返回",
+        "additionalProperties": { "type": "string" }
       },
       "BlockEntityFullNbtData": {
         "type": "object",
