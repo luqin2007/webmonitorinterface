@@ -632,9 +632,40 @@
             }
           }
         }
+}
       }
-    }
-  },
+    },
+    "/api/v1/worlds/{dim}": {
+      "get": {
+        "summary": "获取维度详情",
+        "description": "返回指定维度的详细信息，包括时间、天气、难度等。",
+        "tags": ["世界"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "dim", "in": "path", "required": true, "schema": { "type": "string" }, "description": "维度标识符" }
+        ],
+        "responses": {
+          "200": {
+            "description": "维度详情",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/ApiResponse" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": { "$ref": "#/components/schemas/WorldDetailData" }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
   "components": {
     "securitySchemes": {
       "bearerAuth": {
@@ -710,6 +741,21 @@
           "dimension": { "type": "string", "description": "维度资源位置" },
           "loaded_chunks": { "type": "integer" },
           "difficulty": { "type": "string" }
+        }
+      },
+      "WorldDetailData": {
+        "type": "object",
+        "properties": {
+          "dimension": { "type": "string", "description": "维度资源位置" },
+          "day_time": { "type": "integer", "description": "当前白天时间 (0-24000)" },
+          "game_time": { "type": "integer", "description": "总游戏时间" },
+          "is_raining": { "type": "boolean" },
+          "is_thundering": { "type": "boolean" },
+          "rain_level": { "type": "number", "format": "float" },
+          "thunder_level": { "type": "number", "format": "float" },
+          "difficulty": { "type": "string" },
+          "loaded_chunks": { "type": "integer" },
+          "hardcore": { "type": "boolean" }
         }
       },
       "EventCatalogData": {
