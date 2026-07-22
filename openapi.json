@@ -635,7 +635,7 @@
 }
       }
     },
-    "/api/v1/worlds/{dim}": {
+    "/api/v1/world/{dim}": {
       "get": {
         "summary": "获取维度详情",
         "description": "返回指定维度的详细信息，包括时间、天气、难度等。",
