@@ -3,24 +3,24 @@
   "info": {
     "title": "Web Monitor Interface API",
     "version": "1.0.0",
-    "description": "Minecraft Forge mod REST API for monitoring server state, blocks, entities, players, capabilities, and events. Default listen: `127.0.0.1:18080`.\n\n## Authentication\n\n- Integrated / singleplayer: no key required.\n- Dedicated server: `Authorization: Bearer <key>` header required.\n- Rate limit: 120 req/min per key (configurable).\n\n## WebSocket\n\n- Endpoint: `ws://host:18080/ws`\n- Same bearer auth during HTTP upgrade.\n- Actions: `subscribe`, `unsubscribe`, `ping`, `publish`.\n- Events: `chat.public`, `player.join`, `player.quit`.\n\n## Response Envelope\n\nAll responses use the following envelope:\n```json\n{\"code\": 0, \"msg\": \"ok\", \"data\": {}, \"trace_id\": \"uuid\", \"server_tick\": 123}\n```\n\nError codes: `1001` bad request, `1002` not found, `2001` unauthorized, `2002` forbidden, `4001` rate limited, `3002` internal error."
+    "description": "Minecraft Forge 模组 REST API，用于监控服务器状态、方块、实体、玩家、能力和事件。默认监听 `127.0.0.1:18080`。\n\n## 认证\n\n- 集成服务器/单人游戏：无需 key。\n- 专用服务器：需要 `Authorization: Bearer <key>` 请求头。\n- 限流：每个有效 key 每分钟 120 次（可配置）。\n\n## WebSocket\n\n- 端点：`ws://host:18080/ws`\n- 在 HTTP Upgrade 阶段使用相同的 Bearer 认证。\n- 支持动作：`subscribe`、`unsubscribe`、`ping`、`publish`。\n- 事件：`chat.public`、`player.join`、`player.quit`。\n\n## 响应格式\n\n所有响应使用以下封装：\n```json\n{\"code\": 0, \"msg\": \"ok\", \"data\": {}, \"trace_id\": \"uuid\", \"server_tick\": 123}\n```\n\n错误码：`1001` 参数错误、`1002` 未找到、`2001` 未授权、`2002` 禁止操作、`4001` 限流、`3002` 内部错误。"
   },
   "servers": [
     {
       "url": "http://127.0.0.1:18080",
-      "description": "Default local server"
+      "description": "默认本地服务器"
     }
   ],
   "paths": {
     "/api/v1/status": {
       "get": {
-        "summary": "Server status",
-        "description": "Returns server, player, web service and authentication status.",
-        "tags": ["Server"],
+        "summary": "服务器状态",
+        "description": "返回服务器、玩家、Web 服务和认证状态。",
+        "tags": ["服务器"],
         "security": [{ "bearerAuth": [] }],
         "responses": {
           "200": {
-            "description": "Server status",
+            "description": "服务器状态",
             "content": {
               "application/json": {
                 "schema": {
@@ -42,12 +42,12 @@
     },
     "/api/v1/tps": {
       "get": {
-        "summary": "TPS and tick metrics",
-        "tags": ["Server"],
+        "summary": "TPS 和 Tick 指标",
+        "tags": ["服务器"],
         "security": [{ "bearerAuth": [] }],
         "responses": {
           "200": {
-            "description": "TPS data",
+            "description": "TPS 数据",
             "content": {
               "application/json": {
                 "schema": {
@@ -69,12 +69,12 @@
     },
     "/api/v1/worlds": {
       "get": {
-        "summary": "List loaded worlds",
-        "tags": ["World"],
+        "summary": "列出已加载维度",
+        "tags": ["世界"],
         "security": [{ "bearerAuth": [] }],
         "responses": {
           "200": {
-            "description": "World list",
+            "description": "世界列表",
             "content": {
               "application/json": {
                 "schema": {
@@ -96,13 +96,13 @@
     },
     "/api/v1/events/catalog": {
       "get": {
-        "summary": "Event catalog",
-        "description": "Lists subscribable WebSocket events with descriptions.",
-        "tags": ["Events"],
+        "summary": "事件目录",
+        "description": "列出可订阅的 WebSocket 事件及其描述。",
+        "tags": ["事件"],
         "security": [{ "bearerAuth": [] }],
         "responses": {
           "200": {
-            "description": "Event catalog",
+            "description": "事件目录",
             "content": {
               "application/json": {
                 "schema": {
@@ -124,9 +124,9 @@
     },
     "/api/v1/world/{dim}/blockstate": {
       "get": {
-        "summary": "Get block state property",
-        "description": "Returns a single block state property value.",
-        "tags": ["Block"],
+        "summary": "获取方块状态属性",
+        "description": "返回单个方块状态属性的值。",
+        "tags": ["方块"],
         "security": [{ "bearerAuth": [] }],
         "parameters": [
           { "$ref": "#/components/parameters/Dim" },
@@ -137,7 +137,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Block property",
+            "description": "方块属性",
             "content": {
               "application/json": {
                 "schema": {
@@ -159,9 +159,9 @@
     },
     "/api/v1/world/{dim}/blockentity": {
       "get": {
-        "summary": "Get block entity NBT",
-        "description": "Returns structured NBT for a block entity. Optionally drill into a dot-separated NBT path.",
-        "tags": ["Block"],
+        "summary": "获取方块实体 NBT",
+        "description": "返回方块实体的结构化 NBT。可选通过点分隔的 NBT 路径获取子值。",
+        "tags": ["方块"],
         "security": [{ "bearerAuth": [] }],
         "parameters": [
           { "$ref": "#/components/parameters/Dim" },
@@ -172,7 +172,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Block entity NBT",
+            "description": "方块实体 NBT",
             "content": {
               "application/json": {
                 "schema": {
@@ -199,9 +199,9 @@
     },
     "/api/v1/world/{dim}/blockentity/snbt": {
       "get": {
-        "summary": "Get block entity SNBT",
-        "description": "Returns SNBT string for a block entity. Optionally drill into a dot-separated NBT path.",
-        "tags": ["Block"],
+        "summary": "获取方块实体 SNBT",
+        "description": "返回方块实体的 SNBT 字符串。可选通过点分隔的 NBT 路径获取子值。",
+        "tags": ["方块"],
         "security": [{ "bearerAuth": [] }],
         "parameters": [
           { "$ref": "#/components/parameters/Dim" },
@@ -212,7 +212,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Block entity SNBT",
+            "description": "方块实体 SNBT",
             "content": {
               "application/json": {
                 "schema": {
@@ -239,9 +239,9 @@
     },
     "/api/v1/world/{dim}/blockentity/capability": {
       "get": {
-        "summary": "Get block entity capability snapshot",
-        "description": "Returns a read-only snapshot of a Forge capability (energy, items, or fluid) for a block entity.",
-        "tags": ["Capability"],
+        "summary": "获取方块实体能力快照",
+        "description": "返回方块实体 Forge 能力（energy、items 或 fluid）的只读快照。",
+        "tags": ["能力"],
         "security": [{ "bearerAuth": [] }],
         "parameters": [
           { "$ref": "#/components/parameters/Dim" },
@@ -252,7 +252,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Capability snapshot",
+            "description": "能力快照",
             "content": {
               "application/json": {
                 "schema": {
@@ -274,8 +274,8 @@
     },
     "/api/v1/world/{dim}/entity/{entityId}": {
       "get": {
-        "summary": "Get entity by runtime ID",
-        "tags": ["Entity"],
+        "summary": "按运行时 ID 获取实体",
+        "tags": ["实体"],
         "security": [{ "bearerAuth": [] }],
         "parameters": [
           { "$ref": "#/components/parameters/Dim" },
@@ -283,7 +283,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Entity detail",
+            "description": "实体详情",
             "content": {
               "application/json": {
                 "schema": {
@@ -305,9 +305,9 @@
     },
     "/api/v1/world/{dim}/entity/{entityId}/capability": {
       "get": {
-        "summary": "Get entity capability snapshot",
-        "description": "Returns a read-only snapshot of a Forge capability for an entity.",
-        "tags": ["Capability"],
+        "summary": "获取实体能力快照",
+        "description": "返回实体 Forge 能力的只读快照。",
+        "tags": ["能力"],
         "security": [{ "bearerAuth": [] }],
         "parameters": [
           { "$ref": "#/components/parameters/Dim" },
@@ -316,7 +316,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Entity capability snapshot",
+            "description": "实体能力快照",
             "content": {
               "application/json": {
                 "schema": {
@@ -338,17 +338,17 @@
     },
     "/api/v1/world/{dim}/player/{uuidOrName}": {
       "get": {
-        "summary": "Get online player detail",
-        "description": "Returns player info, inventory, and stats. Accepts UUID or player name.",
-        "tags": ["Player"],
+        "summary": "获取在线玩家详情",
+        "description": "返回玩家信息、背包和状态。接受 UUID 或玩家名称。",
+        "tags": ["玩家"],
         "security": [{ "bearerAuth": [] }],
         "parameters": [
           { "$ref": "#/components/parameters/Dim" },
-          { "name": "uuidOrName", "in": "path", "required": true, "schema": { "type": "string" }, "description": "Player UUID or display name" }
+          { "name": "uuidOrName", "in": "path", "required": true, "schema": { "type": "string" }, "description": "玩家 UUID 或显示名称" }
         ],
         "responses": {
           "200": {
-            "description": "Player detail",
+            "description": "玩家详情",
             "content": {
               "application/json": {
                 "schema": {
@@ -370,16 +370,16 @@
     },
     "/api/v1/world/{dim}/players": {
       "get": {
-        "summary": "List players in dimension",
-        "description": "Returns all online players in the specified dimension.",
-        "tags": ["Player"],
+        "summary": "列出维度内玩家",
+        "description": "返回指定维度内的所有在线玩家。",
+        "tags": ["玩家"],
         "security": [{ "bearerAuth": [] }],
         "parameters": [
           { "$ref": "#/components/parameters/Dim" }
         ],
         "responses": {
           "200": {
-            "description": "Player list",
+            "description": "玩家列表",
             "content": {
               "application/json": {
                 "schema": {
@@ -401,9 +401,9 @@
     },
     "/api/v1/world/{dim}/entities/aabb": {
       "get": {
-        "summary": "Query entities within AABB",
-        "description": "Returns entities in an axis-aligned bounding box. Optional type filter and limit (max 1000).",
-        "tags": ["Entity"],
+        "summary": "查询 AABB 内实体",
+        "description": "返回轴对齐包围盒内的实体。可选类型过滤和限制（最大 1000）。",
+        "tags": ["实体"],
         "security": [{ "bearerAuth": [] }],
         "parameters": [
           { "$ref": "#/components/parameters/Dim" },
@@ -418,7 +418,7 @@
         ],
         "responses": {
           "200": {
-            "description": "AABB query result",
+            "description": "AABB 查询结果",
             "content": {
               "application/json": {
                 "schema": {
@@ -440,13 +440,13 @@
     },
     "/api/v1/world/{dim}/blocks": {
       "post": {
-        "summary": "Batch block query",
-        "description": "Batch query blocks by positions array or region. Optional `filter` in body or `?type=` query param to filter by block ID. Max 4096 scanned, max 1000 returned.",
-        "tags": ["Block", "Batch"],
+        "summary": "批量方块查询",
+        "description": "通过 positions 数组或 region 区域批量查询方块。可选 body 中 `filter` 或查询参数 `?type=` 过滤方块 ID。最多扫描 4096 个位置，最多返回 1000 个方块。",
+        "tags": ["方块", "批量"],
         "security": [{ "bearerAuth": [] }],
         "parameters": [
           { "$ref": "#/components/parameters/Dim" },
-          { "name": "type", "in": "query", "required": false, "schema": { "type": "string" }, "description": "Block ID filter (e.g. minecraft:chest). Overrides body `filter`." }
+          { "name": "type", "in": "query", "required": false, "schema": { "type": "string" }, "description": "方块 ID 过滤器（如 minecraft:chest）。覆盖 body 中的 filter。" }
         ],
         "requestBody": {
           "required": true,
@@ -458,7 +458,7 @@
         },
         "responses": {
           "200": {
-            "description": "Batch query result",
+            "description": "批量查询结果",
             "content": {
               "application/json": {
                 "schema": {
@@ -480,9 +480,9 @@
     },
     "/api/v1/world/{dim}/blockstates": {
       "post": {
-        "summary": "Batch block state query",
-        "description": "Batch query block states by positions array. Returns state for each position.",
-        "tags": ["Block", "Batch"],
+        "summary": "批量方块状态查询",
+        "description": "通过 positions 数组批量查询方块状态。返回每个位置的状态。",
+        "tags": ["方块", "批量"],
         "security": [{ "bearerAuth": [] }],
         "parameters": [
           { "$ref": "#/components/parameters/Dim" }
@@ -497,7 +497,7 @@
         },
         "responses": {
           "200": {
-            "description": "Batch state result",
+            "description": "批量状态结果",
             "content": {
               "application/json": {
                 "schema": {
@@ -519,9 +519,9 @@
     },
     "/api/v1/world/{dim}/blockentities": {
       "post": {
-        "summary": "Batch block entity NBT query",
-        "description": "Batch query block entity structured NBT by positions array.",
-        "tags": ["Block", "Batch"],
+        "summary": "批量方块实体 NBT 查询",
+        "description": "通过 positions 数组批量查询方块实体的结构化 NBT。",
+        "tags": ["方块", "批量"],
         "security": [{ "bearerAuth": [] }],
         "parameters": [
           { "$ref": "#/components/parameters/Dim" }
@@ -536,7 +536,7 @@
         },
         "responses": {
           "200": {
-            "description": "Batch entity NBT result",
+            "description": "批量实体 NBT 结果",
             "content": {
               "application/json": {
                 "schema": {
@@ -558,9 +558,9 @@
     },
     "/api/v1/world/{dim}/blockentities/snbt": {
       "post": {
-        "summary": "Batch block entity SNBT query",
-        "description": "Batch query block entity SNBT strings by positions array.",
-        "tags": ["Block", "Batch"],
+        "summary": "批量方块实体 SNBT 查询",
+        "description": "通过 positions 数组批量查询方块实体的 SNBT 字符串。",
+        "tags": ["方块", "批量"],
         "security": [{ "bearerAuth": [] }],
         "parameters": [
           { "$ref": "#/components/parameters/Dim" }
@@ -575,7 +575,7 @@
         },
         "responses": {
           "200": {
-            "description": "Batch entity SNBT result",
+            "description": "批量实体 SNBT 结果",
             "content": {
               "application/json": {
                 "schema": {
@@ -597,9 +597,9 @@
     },
     "/api/v1/world/{dim}/blockentity/capabilities": {
       "post": {
-        "summary": "Batch block entity capability query",
-        "description": "Batch query capability availability lists by positions array.",
-        "tags": ["Capability", "Batch"],
+        "summary": "批量方块实体能力查询",
+        "description": "通过 positions 数组批量查询方块实体的能力可用性列表。",
+        "tags": ["能力", "批量"],
         "security": [{ "bearerAuth": [] }],
         "parameters": [
           { "$ref": "#/components/parameters/Dim" }
@@ -614,7 +614,7 @@
         },
         "responses": {
           "200": {
-            "description": "Batch capability result",
+            "description": "批量能力结果",
             "content": {
               "application/json": {
                 "schema": {
@@ -640,37 +640,37 @@
       "bearerAuth": {
         "type": "http",
         "scheme": "bearer",
-        "description": "API key via Authorization: Bearer <key>"
+        "description": "通过 Authorization: Bearer <key> 传递 API key"
       }
     },
     "parameters": {
-      "Dim": { "name": "dim", "in": "path", "required": true, "schema": { "type": "string" }, "description": "Dimension identifier, e.g. minecraft:overworld, minecraft:the_nether, minecraft:the_end, or a custom dimension resource location" },
-      "X": { "name": "x", "in": "query", "required": true, "schema": { "type": "integer" }, "description": "Block X coordinate" },
-      "Y": { "name": "y", "in": "query", "required": true, "schema": { "type": "integer" }, "description": "Block Y coordinate" },
-      "Z": { "name": "z", "in": "query", "required": true, "schema": { "type": "integer" }, "description": "Block Z coordinate" },
-      "Key": { "name": "key", "in": "query", "required": true, "schema": { "type": "string" }, "description": "Block state property name" },
-      "Path": { "name": "path", "in": "query", "required": false, "schema": { "type": "string" }, "description": "Dot-separated NBT path (e.g. \"Items.0.tag\")" },
-      "Cap": { "name": "cap", "in": "query", "required": true, "schema": { "type": "string" }, "description": "Capability name: energy, items, or fluid" },
-      "EntityId": { "name": "entityId", "in": "path", "required": true, "schema": { "type": "integer" }, "description": "Runtime entity ID" },
+      "Dim": { "name": "dim", "in": "path", "required": true, "schema": { "type": "string" }, "description": "维度标识符，如 minecraft:overworld、minecraft:the_nether、minecraft:the_end 或自定义维度资源位置" },
+      "X": { "name": "x", "in": "query", "required": true, "schema": { "type": "integer" }, "description": "方块 X 坐标" },
+      "Y": { "name": "y", "in": "query", "required": true, "schema": { "type": "integer" }, "description": "方块 Y 坐标" },
+      "Z": { "name": "z", "in": "query", "required": true, "schema": { "type": "integer" }, "description": "方块 Z 坐标" },
+      "Key": { "name": "key", "in": "query", "required": true, "schema": { "type": "string" }, "description": "方块状态属性名称" },
+      "Path": { "name": "path", "in": "query", "required": false, "schema": { "type": "string" }, "description": "点分隔的 NBT 路径（如 \"Items.0.tag\"）" },
+      "Cap": { "name": "cap", "in": "query", "required": true, "schema": { "type": "string" }, "description": "能力名称：energy、items 或 fluid" },
+      "EntityId": { "name": "entityId", "in": "path", "required": true, "schema": { "type": "integer" }, "description": "运行时实体 ID" },
       "MinX": { "name": "minX", "in": "query", "required": true, "schema": { "type": "number", "format": "double" } },
       "MinY": { "name": "minY", "in": "query", "required": true, "schema": { "type": "number", "format": "double" } },
       "MinZ": { "name": "minZ", "in": "query", "required": true, "schema": { "type": "number", "format": "double" } },
       "MaxX": { "name": "maxX", "in": "query", "required": true, "schema": { "type": "number", "format": "double" } },
       "MaxY": { "name": "maxY", "in": "query", "required": true, "schema": { "type": "number", "format": "double" } },
       "MaxZ": { "name": "maxZ", "in": "query", "required": true, "schema": { "type": "number", "format": "double" } },
-      "EntityType": { "name": "type", "in": "query", "required": false, "schema": { "type": "string" }, "description": "Entity type filter (e.g. minecraft:pig)" },
-      "Limit": { "name": "limit", "in": "query", "required": false, "schema": { "type": "integer", "maximum": 1000, "default": 50 }, "description": "Max entities to return (capped at 1000)" }
+      "EntityType": { "name": "type", "in": "query", "required": false, "schema": { "type": "string" }, "description": "实体类型过滤器（如 minecraft:pig）" },
+      "Limit": { "name": "limit", "in": "query", "required": false, "schema": { "type": "integer", "maximum": 1000, "default": 50 }, "description": "最大返回实体数（上限 1000）" }
     },
     "schemas": {
       "ApiResponse": {
         "type": "object",
         "required": ["code", "msg", "trace_id", "server_tick"],
         "properties": {
-          "code": { "type": "integer", "description": "0 = success, non-zero = error code" },
-          "msg": { "type": "string", "description": "ok on success, error message on failure" },
-          "data": { "description": "Response payload (present only on success)" },
-          "trace_id": { "type": "string", "format": "uuid", "description": "Unique request trace ID" },
-          "server_tick": { "type": "integer", "description": "Server tick count at response time" }
+          "code": { "type": "integer", "description": "0 = 成功，非零 = 错误码" },
+          "msg": { "type": "string", "description": "成功时为 ok，失败时为错误信息" },
+          "data": { "description": "响应数据（仅在成功时存在）" },
+          "trace_id": { "type": "string", "format": "uuid", "description": "唯一请求追踪 ID" },
+          "server_tick": { "type": "integer", "description": "响应时的服务器 tick 计数" }
         }
       },
       "StatusData": {
@@ -707,7 +707,7 @@
       "WorldEntry": {
         "type": "object",
         "properties": {
-          "dimension": { "type": "string", "description": "Dimension resource location" },
+          "dimension": { "type": "string", "description": "维度资源位置" },
           "loaded_chunks": { "type": "integer" },
           "difficulty": { "type": "string" }
         }
@@ -737,27 +737,27 @@
       "BlockEntityFullNbtData": {
         "type": "object",
         "properties": {
-          "nbt": { "description": "Structured NBT object" }
+          "nbt": { "description": "结构化 NBT 对象" }
         }
       },
       "BlockEntityPathNbtData": {
         "type": "object",
         "properties": {
           "path": { "type": "string" },
-          "value": { "description": "Value at the specified NBT path (structured object)" }
+          "value": { "description": "指定 NBT 路径上的值（结构化对象）" }
         }
       },
       "BlockEntityFullSnbtData": {
         "type": "object",
         "properties": {
-          "nbt": { "type": "string", "description": "SNBT string" }
+          "nbt": { "type": "string", "description": "SNBT 字符串" }
         }
       },
       "BlockEntityPathSnbtData": {
         "type": "object",
         "properties": {
           "path": { "type": "string" },
-          "value": { "type": "string", "description": "SNBT value at the specified NBT path" }
+          "value": { "type": "string", "description": "指定 NBT 路径上的 SNBT 值" }
         }
       },
       "CapabilitySnapshotData": {
@@ -795,7 +795,7 @@
                 "limit": { "type": "integer" },
                 "id": { "type": "string" },
                 "count": { "type": "integer" },
-                "nbt": { "description": "Optional item NBT" }
+"nbt": { "description": "可选物品 NBT" }
               }
             }
           }
@@ -813,7 +813,7 @@
                 "capacity": { "type": "integer" },
                 "id": { "type": "string" },
                 "amount": { "type": "integer" },
-                "nbt": { "description": "Optional fluid NBT" }
+                "nbt": { "description": "可选流体 NBT" }
               }
             }
           }
@@ -908,8 +908,8 @@
       "AabbResultData": {
         "type": "object",
         "properties": {
-          "total": { "type": "integer", "description": "Matching entities count" },
-          "returned": { "type": "integer", "description": "Entities returned in this response" },
+          "total": { "type": "integer", "description": "匹配实体总数" },
+          "returned": { "type": "integer", "description": "本次响应返回的实体数" },
           "entities": {
             "type": "array",
             "items": { "$ref": "#/components/schemas/EntityData" }
@@ -918,12 +918,12 @@
       },
       "BatchRequest": {
         "type": "object",
-        "description": "Either `positions` array or `region` object is required.",
+        "description": "需要提供 `positions` 数组或 `region` 区域对象。",
         "properties": {
           "positions": {
             "type": "array",
             "items": { "$ref": "#/components/schemas/BlockPos" },
-            "description": "Explicit block positions"
+            "description": "显式方块位置列表"
           },
           "region": {
             "type": "object",
@@ -935,16 +935,16 @@
               "minZ": { "type": "integer" },
               "maxZ": { "type": "integer" }
             },
-            "description": "Cuboid region (expands to at most 4096 positions)"
+            "description": "长方体区域（最多展开 4096 个位置）"
           },
           "filter": {
             "type": "string",
-            "description": "Block ID filter (e.g. minecraft:chest). Overridden by ?type= query param."
+            "description": "方块 ID 过滤器（如 minecraft:chest）。可由 ?type= 查询参数覆盖。"
           },
           "limit": {
             "type": "integer",
             "default": 4096,
-            "description": "Max positions to scan (capped at 4096)"
+            "description": "最大扫描位置数（上限 4096）"
           }
         }
       },
@@ -955,7 +955,7 @@
           "positions": {
             "type": "array",
             "items": { "$ref": "#/components/schemas/BlockPos" },
-            "description": "Explicit block positions array"
+            "description": "显式方块位置数组"
           }
         }
       },
@@ -992,11 +992,11 @@
       "BlockState": {
         "type": "object",
         "properties": {
-          "id": { "type": "string", "description": "Block registry ID" },
+          "id": { "type": "string", "description": "方块注册 ID" },
           "properties": {
             "type": "object",
             "additionalProperties": { "type": "string" },
-            "description": "Block state property key-value pairs"
+            "description": "方块状态属性键值对"
           }
         }
       },
@@ -1004,8 +1004,8 @@
         "type": "object",
         "properties": {
           "exists": { "type": "boolean" },
-          "type": { "type": "string", "description": "Block entity type registry ID" },
-          "nbt": { "description": "Structured NBT data" }
+          "type": { "type": "string", "description": "方块实体类型注册 ID" },
+          "nbt": { "description": "结构化 NBT 数据" }
         }
       },
       "BatchStateResultData": {
@@ -1032,7 +1032,7 @@
               "type": "object",
               "properties": {
                 "pos": { "$ref": "#/components/schemas/BlockPos" },
-                "nbt": { "description": "Structured NBT object" }
+"nbt": { "description": "结构化 NBT 对象" }
               }
             }
           }
@@ -1047,7 +1047,7 @@
               "type": "object",
               "properties": {
                 "pos": { "$ref": "#/components/schemas/BlockPos" },
-                "nbt": { "type": "string", "description": "SNBT string" }
+"nbt": { "type": "string", "description": "SNBT 字符串" }
               }
             }
           }
