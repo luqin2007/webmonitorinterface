@@ -14,7 +14,7 @@
 /webmonitor key delete <key>
 ```
 
-REST 请求按下列优先顺序接受 key：`Authorization: Bearer <key>`、`X-Api-Key`、`X-Auth-Token`、查询参数 `key` 或 `token`。请优先使用 HTTP 请求头，避免 key 出现在访问日志和 URL 历史中。
+REST 请求使用 `Authorization: Bearer <key>` 请求头传递 key。请优先使用 HTTP 请求头，避免 key 出现在访问日志和 URL 历史中。
 
 专用服务器的 REST 限流默认为每个有效 key 每分钟 120 次，可由 `rest.rate_limit_per_minute` 调整。不存在 login、logout 或 session API。
 
@@ -111,7 +111,7 @@ REST 请求按下列优先顺序接受 key：`Authorization: Bearer <key>`、`X-
 
 ## WebSocket
 
-连接端点：`ws://127.0.0.1:18080/ws`。物理专用服务器在 HTTP Upgrade 请求时使用与 REST 相同的 API key 输入方式：`Authorization: Bearer <key>`、`X-Api-Key`、`X-Auth-Token`、`key` 或 `token` 查询参数。未提供有效 key 时，握手返回 HTTP 401；不存在 WebSocket JSON `auth` 动作。连接成功后可发送：
+连接端点：`ws://127.0.0.1:18080/ws`。物理专用服务器在 HTTP Upgrade 请求时使用 `Authorization: Bearer <key>` 请求头传递 key。未提供有效 key 时，握手返回 HTTP 401；不存在 WebSocket JSON `auth` 动作。连接成功后可发送：
 
 ```json
 {"action":"subscribe","events":["chat.public","player.*"]}

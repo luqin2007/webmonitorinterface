@@ -17,7 +17,7 @@
 ## 已确认的限制
 
 - REST 查询会切换到 Minecraft 服务器主线程，Netty I/O 线程只处理 HTTP、认证和 JSON 传输；单次等待上限为 10 秒。
-- REST 与 WebSocket 统一使用 API key：`Authorization: Bearer`、`X-Api-Key`、`X-Auth-Token`、`key` 或 `token`。WebSocket 在 HTTP Upgrade 阶段校验，不提供 JSON `auth` 动作。
+- REST 与 WebSocket 统一使用 `Authorization: Bearer <key>` 请求头传递 API key。WebSocket 在 HTTP Upgrade 阶段校验，不提供 JSON `auth` 动作。
 - 事件目录仅包含已实际发布的 `chat.public`、`player.join` 和 `player.quit`。
 - 物理客户端的集成服务器无需 key，也不实施 key 限流，这是本地使用场景的有意设计。WebSocket 的 `max_rate` 与 `tps_update_interval` 配置尚未使用。
 - `/webmonitorinterface` 已移除；只保留 `/webmonitor`。

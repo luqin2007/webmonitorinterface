@@ -33,7 +33,7 @@ import java.util.concurrent.ConcurrentHashMap;
  *   <li>Integrated / singleplayer: no key required</li>
  *   <li>Dedicated server: key required (unless config disables it)</li>
  * </ul>
- * Pass key via {@code Authorization: Bearer <key>}, {@code X-Api-Key}, or {@code ?key=}.
+ * Pass key via {@code Authorization: Bearer <key>}.
  */
 public final class RestHandler extends SimpleChannelInboundHandler<FullHttpRequest> {
 
@@ -57,7 +57,7 @@ public final class RestHandler extends SimpleChannelInboundHandler<FullHttpReque
         }
         QueryStringDecoder query = new QueryStringDecoder(request.uri());
         try {
-            Optional<ApiKey> apiKey = resolveKey(request, query);
+            Optional<ApiKey> apiKey = resolveKey(request);
             if (keyManager != null && keyManager.isAuthRequired() && apiKey.isEmpty()) {
                 send(ctx, HttpResponseStatus.UNAUTHORIZED,
                         GSON.toJson(MinecraftThread.call(() -> envelope(error(2001, "API key required. Use /webmonitor key generate")))));
@@ -198,15 +198,11 @@ public final class RestHandler extends SimpleChannelInboundHandler<FullHttpReque
         return error(1002, "Not found: " + path);
     }
 
-    private Optional<ApiKey> resolveKey(FullHttpRequest request, QueryStringDecoder query) {
+    private Optional<ApiKey> resolveKey(FullHttpRequest request) {
         if (keyManager == null) return Optional.empty();
         String key = null;
         String header = request.headers().get(HttpHeaderNames.AUTHORIZATION);
         if (header != null && header.startsWith("Bearer ")) key = header.substring(7).trim();
-        if (key == null || key.isBlank()) key = request.headers().get("X-Api-Key");
-        if (key == null || key.isBlank()) key = request.headers().get("X-Auth-Token");
-        if (key == null || key.isBlank()) key = param(query, "key", null);
-        if (key == null || key.isBlank()) key = param(query, "token", null);
         return keyManager.get(key);
     }
 
@@ -292,7 +288,7 @@ public final class RestHandler extends SimpleChannelInboundHandler<FullHttpReque
         r.headers().setInt(HttpHeaderNames.CONTENT_LENGTH, r.content().readableBytes());
         r.headers().set(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN, "*");
         r.headers().set(HttpHeaderNames.ACCESS_CONTROL_ALLOW_METHODS, "GET,POST,OPTIONS");
-        r.headers().set(HttpHeaderNames.ACCESS_CONTROL_ALLOW_HEADERS, "Authorization, X-Api-Key, X-Auth-Token, Content-Type");
+        r.headers().set(HttpHeaderNames.ACCESS_CONTROL_ALLOW_HEADERS, "Authorization, Content-Type");
         c.writeAndFlush(r).addListener(ChannelFutureListener.CLOSE);
     }
 }
