@@ -41,34 +41,73 @@ REST 请求按下列优先顺序接受 key：`Authorization: Bearer <key>`、`X-
 | GET | `/api/v1/status` | | 服务、玩家、Web 服务和认证状态 |
 | GET | `/api/v1/tps` | | TPS、平均 tick 时间、tick 计数 |
 | GET | `/api/v1/worlds` | | 已加载维度、区块数和难度 |
-| GET | `/api/v1/world/{dim}/block` | `x`、`y`、`z` | 方块状态及 block entity SNBT；不会加载区块 |
-| GET | `/api/v1/world/{dim}/block/property` | `x`、`y`、`z`、`key` | 单个方块状态属性 |
-| GET | `/api/v1/world/{dim}/block/blockentity` | `x`、`y`、`z`、可选 `path` | 完整 BE 结构化 NBT，或点分 NBT 路径的结构化值 |
-| GET | `/api/v1/world/{dim}/block/blockentity/snbt` | `x`、`y`、`z`、可选 `path` | 完整 BE SNBT，或点分 NBT 路径的 SNBT 字符串 |
-| GET | `/api/v1/world/{dim}/block/capability` | `x`、`y`、`z`、`cap` | `energy`、`items` 或 `fluid` 的只读快照 |
+| GET | `/api/v1/world/{dim}/blockstate` | `x`、`y`、`z`、`key` | 单个方块状态属性 |
+| GET | `/api/v1/world/{dim}/blockentity` | `x`、`y`、`z`、可选 `path` | 完整 BE 结构化 NBT，或点分 NBT 路径的结构化值 |
+| GET | `/api/v1/world/{dim}/blockentity/snbt` | `x`、`y`、`z`、可选 `path` | 完整 BE SNBT，或点分 NBT 路径的 SNBT 字符串 |
+| GET | `/api/v1/world/{dim}/blockentity/capability` | `x`、`y`、`z`、`cap` | `energy`、`items` 或 `fluid` 的只读快照 |
 | GET | `/api/v1/world/{dim}/entity/{entityId}` | | 按运行时实体 ID 查询实体 |
+| GET | `/api/v1/world/{dim}/entity/{entityId}/capability` | `cap` | 实体的 capability 只读快照 |
 | GET | `/api/v1/world/{dim}/player/{uuidOrName}` | | 在线玩家、背包和状态 |
+| GET | `/api/v1/world/{dim}/players` | | 当前维度所有玩家，返回 `displayName` 和 `uuid` |
 | GET | `/api/v1/world/{dim}/entities/aabb` | `minX`、`minY`、`minZ`、`maxX`、`maxY`、`maxZ`；可选 `type`、`limit` | AABB 内实体；`limit` 最大 1000 |
-| POST | `/api/v1/blocks/batch` | JSON 请求体 | 批量方块查询 |
-| POST | `/api/v1/blocks/batch/count` | JSON 请求体 | 批量方块计数，不返回方块列表 |
-| GET | `/api/v1/capabilities` | `dim`、`x`、`y`、`z` | 列出 BE 的 energy/items/fluid capability 是否可用 |
-| GET | `/api/v1/capabilities/{target}/{cap}` | `target` 为 `block` 或 `blockentity`；`dim`、`x`、`y`、`z`，或 `ref=dim,x,y,z` | capability 只读快照 |
+| POST | `/api/v1/world/{dim}/blocks` | JSON 请求体；可选 `?type=` | 批量方块查询，`dim` 从 URL 获取 |
+| POST | `/api/v1/world/{dim}/blockstates` | JSON 请求体 | 批量 blockstate 查询（仅 positions 数组） |
+| POST | `/api/v1/world/{dim}/blockentities` | JSON 请求体 | 批量 block entity NBT 查询（仅 positions 数组） |
+| POST | `/api/v1/world/{dim}/blockentities/snbt` | JSON 请求体 | 批量 block entity SNBT 查询（仅 positions 数组） |
+| POST | `/api/v1/world/{dim}/blockentity/capabilities` | JSON 请求体 | 批量 block entity capability 可用性列表查询（仅 positions 数组） |
 | GET | `/api/v1/events/catalog` | | 可订阅事件名称与描述 |
 
-`{dim}` 可使用 `minecraft:overworld`、`minecraft:the_nether`、`minecraft:the_end`，或有效的维度资源位置。`/block/blockentity/invoke` 和所有 capability `POST`/`execute` 请求会返回 `2002`，不会执行游戏对象方法。
+`{dim}` 可使用 `minecraft:overworld`、`minecraft:the_nether`、`minecraft:the_end`，或有效的维度资源位置。所有 capability 端点均为只读快照，不会执行游戏对象方法。
 
-批量请求示例：
+## 批量查询
+
+### POST /api/v1/world/{dim}/blocks
+
+替代原 `/api/v1/blocks/batch`，dimension 从 URL 路径获取，不再出现在请求体中。支持 `positions` 数组和 `region` 区域两种方式，可选 `?type=` 查询参数过滤方块类型。
 
 ```json
 {
-  "dimension": "minecraft:overworld",
   "positions": [{"x": 0, "y": 64, "z": 0}],
   "filter": "minecraft:chest",
   "limit": 4096
 }
 ```
 
-也可使用 `region` 替代 `positions`：`{ "minX": 0, "minY": 64, "minZ": 0, "maxX": 15, "maxY": 64, "maxZ": 15 }`。区域会最多展开 4096 个位置；非计数批量查询最多返回 1000 个方块。
+也可使用 `region` 替代 `positions`：`{ "minX": 0, "minY": 64, "minZ": 0, "maxX": 15, "maxY": 64, "maxZ": 15 }`。区域会最多展开 4096 个位置；最多返回 1000 个方块。
+
+### POST /api/v1/world/{dim}/blockstates
+
+仅接受 `positions` 数组，返回每个位置的 block state 信息：
+
+```json
+{
+  "positions": [{"x": 0, "y": 64, "z": 0}]
+}
+```
+
+### POST /api/v1/world/{dim}/blockentities
+
+仅接受 `positions` 数组，返回每个位置的 block entity 结构化 NBT：
+
+```json
+{
+  "positions": [{"x": 0, "y": 64, "z": 0}]
+}
+```
+
+### POST /api/v1/world/{dim}/blockentities/snbt
+
+同上，返回 SNBT 字符串。
+
+### POST /api/v1/world/{dim}/blockentity/capabilities
+
+仅接受 `positions` 数组，返回每个位置的 capability 可用性列表：
+
+```json
+{
+  "positions": [{"x": 0, "y": 64, "z": 0}]
+}
+```
 
 ## WebSocket
 

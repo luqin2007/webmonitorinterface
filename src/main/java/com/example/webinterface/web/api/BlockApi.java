@@ -1,5 +1,7 @@
 package com.example.webinterface.web.api;
 
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
@@ -77,6 +79,59 @@ public final class BlockApi {
         return ok(data);
     }
 
+    public static JsonObject batchBlockStates(String dimension, JsonObject body) {
+        ServerLevel level = level(dimension);
+        if (level == null) return error(1002, "Dimension not found: " + dimension);
+        JsonArray positions = body.has("positions") && body.get("positions").isJsonArray()
+                ? body.getAsJsonArray("positions") : new JsonArray();
+        if (positions.size() == 0) return error(1001, "positions array is required");
+        JsonArray results = new JsonArray();
+        for (JsonElement element : positions) {
+            if (!element.isJsonObject()) continue;
+            JsonObject p = element.getAsJsonObject();
+            int x = integer(p, "x", 0), y = integer(p, "y", 0), z = integer(p, "z", 0);
+            JsonObject entry = new JsonObject();
+            entry.add("pos", pos(x, y, z));
+            BlockPos bp = new BlockPos(x, y, z);
+            if (level.hasChunkAt(bp)) {
+                entry.add("state", stateJson(level.getBlockState(bp)));
+            }
+            results.add(entry);
+        }
+        JsonObject data = new JsonObject();
+        data.add("results", results);
+        return ok(data);
+    }
+
+    public static JsonObject batchBlockEntities(String dimension, JsonObject body, boolean snbt) {
+        ServerLevel level = level(dimension);
+        if (level == null) return error(1002, "Dimension not found: " + dimension);
+        JsonArray positions = body.has("positions") && body.get("positions").isJsonArray()
+                ? body.getAsJsonArray("positions") : new JsonArray();
+        if (positions.size() == 0) return error(1001, "positions array is required");
+        JsonArray results = new JsonArray();
+        for (JsonElement element : positions) {
+            if (!element.isJsonObject()) continue;
+            JsonObject p = element.getAsJsonObject();
+            int x = integer(p, "x", 0), y = integer(p, "y", 0), z = integer(p, "z", 0);
+            JsonObject entry = new JsonObject();
+            entry.add("pos", pos(x, y, z));
+            BlockPos bp = new BlockPos(x, y, z);
+            if (level.hasChunkAt(bp)) {
+                BlockEntity be = level.getBlockEntity(bp);
+                if (be != null) {
+                    CompoundTag tag = be.saveWithFullMetadata();
+                    if (snbt) entry.addProperty("nbt", tag.toString());
+                    else entry.add("nbt", NbtJson.toJson(tag));
+                }
+            }
+            results.add(entry);
+        }
+        JsonObject data = new JsonObject();
+        data.add("results", results);
+        return ok(data);
+    }
+
     private static JsonObject stateJson(BlockState state) {
         JsonObject o = new JsonObject();
         o.addProperty("id", String.valueOf(ForgeRegistries.BLOCKS.getKey(state.getBlock())));
@@ -104,6 +159,11 @@ public final class BlockApi {
         o.addProperty("y", y);
         o.addProperty("z", z);
         return o;
+    }
+
+    private static int integer(JsonObject o, String key, int fallback) {
+        if (!o.has(key) || !o.get(key).isJsonPrimitive()) return fallback;
+        try { return o.get(key).getAsInt(); } catch (Exception e) { return fallback; }
     }
 
     static ServerLevel level(String dim) {

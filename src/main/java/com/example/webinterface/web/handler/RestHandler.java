@@ -125,19 +125,8 @@ public final class RestHandler extends SimpleChannelInboundHandler<FullHttpReque
             });
         }
 
-        if (method.equals(HttpMethod.POST) && path.equals("/api/v1/blocks/batch"))
-            return BatchApi.query(body, false);
-        if (method.equals(HttpMethod.POST) && path.equals("/api/v1/blocks/batch/count"))
-            return BatchApi.query(body, true);
-
-        if (method.equals(HttpMethod.GET) && path.equals("/api/v1/capabilities"))
-            return CapabilityApi.listCapabilities(param(q, "dim", "minecraft:overworld"),
-                    integer(q, "x"), integer(q, "y"), integer(q, "z"));
-
         if (path.startsWith("/api/v1/world/"))
-            return worldRoute(method, path, q);
-        if (path.startsWith("/api/v1/capabilities/"))
-            return capabilityRoute(method, path, q);
+            return worldRoute(method, path, q, body);
 
         if (path.equals("/api/v1/events/catalog") && method.equals(HttpMethod.GET)) {
             JsonArray arr = new JsonArray();
@@ -155,50 +144,20 @@ public final class RestHandler extends SimpleChannelInboundHandler<FullHttpReque
         return error(1002, "Not found: " + path);
     }
 
-    private JsonObject capabilityRoute(HttpMethod method, String path, QueryStringDecoder q) {
-        String[] p = path.split("/");
-        if (p.length < 6) return error(1002, "Not found: " + path);
-        String target = p[4], capability = p[5];
-        if (!"block".equals(target) && !"blockentity".equals(target))
-            return error(1001, "Only block capability references are supported");
-        // execute / write endpoints removed
-        if (path.endsWith("/execute") || method.equals(HttpMethod.POST)) {
-            return error(2002, "Capability mutations are disabled (monitor-only API)");
-        }
-        String dim = param(q, "dim", "minecraft:overworld");
-        int x = integer(q, "x"), y = integer(q, "y"), z = integer(q, "z");
-        String ref = param(q, "ref", null);
-        if (ref != null) {
-            String[] parts = ref.split(",", 4);
-            if (parts.length == 4) {
-                dim = parts[0]; x = parseInt(parts[1]); y = parseInt(parts[2]); z = parseInt(parts[3]);
-            }
-        }
-        if (method.equals(HttpMethod.GET)) {
-            return CapabilityApi.getCapability(dim, x, y, z, capability);
-        }
-        return error(1002, "Not found: " + path);
-    }
-
-    private JsonObject worldRoute(HttpMethod method, String path, QueryStringDecoder q) {
+    private JsonObject worldRoute(HttpMethod method, String path, QueryStringDecoder q, JsonObject body) {
         String[] p = path.split("/");
         if (p.length < 6) return error(1002, "Not found: " + path);
         String dim = p[4];
         int x = integer(q, "x"), y = integer(q, "y"), z = integer(q, "z");
         String rest = path.substring(("/api/v1/world/" + dim).length());
 
-        if (rest.equals("/block") && method.equals(HttpMethod.GET))
-            return cachedRead("block|" + dim + "|" + x + "|" + y + "|" + z,
-                    () -> BlockApi.getBlock(dim, x, y, z));
-        if (rest.equals("/block/property") && method.equals(HttpMethod.GET))
+        if (rest.equals("/blockstate") && method.equals(HttpMethod.GET))
             return BlockApi.getProperty(dim, x, y, z, param(q, "key", null));
-        if (rest.equals("/block/blockentity") && method.equals(HttpMethod.GET))
+        if (rest.equals("/blockentity") && method.equals(HttpMethod.GET))
             return BlockApi.getBlockEntityNbt(dim, x, y, z, param(q, "path", null), false);
-        if (rest.equals("/block/blockentity/snbt") && method.equals(HttpMethod.GET))
+        if (rest.equals("/blockentity/snbt") && method.equals(HttpMethod.GET))
             return BlockApi.getBlockEntityNbt(dim, x, y, z, param(q, "path", null), true);
-        if (rest.equals("/block/blockentity/invoke") || rest.endsWith("/invoke"))
-            return error(2002, "Block entity method invocation is disabled (monitor-only API)");
-        if (rest.equals("/block/capability") && method.equals(HttpMethod.GET))
+        if (rest.equals("/blockentity/capability") && method.equals(HttpMethod.GET))
             return CapabilityApi.getCapability(dim, x, y, z, param(q, "cap", null));
         if (rest.equals("/entities/aabb") && method.equals(HttpMethod.GET))
             return EntityApi.getEntitiesInAABB(dim,
@@ -206,11 +165,36 @@ public final class RestHandler extends SimpleChannelInboundHandler<FullHttpReque
                     decimal(q, "maxX"), decimal(q, "maxY"), decimal(q, "maxZ"),
                     param(q, "type", null), Math.max(1, integer(q, "limit", 50)));
         if (rest.startsWith("/entity/") && method.equals(HttpMethod.GET)) {
-            int eid = parseInt(rest.substring(8));
+            String remainder = rest.substring(8);
+            int slashIdx = remainder.indexOf('/');
+            if (slashIdx > 0) {
+                int eid = parseInt(remainder.substring(0, slashIdx));
+                String sub = remainder.substring(slashIdx);
+                if (sub.equals("/capability"))
+                    return EntityApi.getEntityCapability(dim, eid, param(q, "cap", null));
+                return error(1002, "Not found: " + path);
+            }
+            int eid = parseInt(remainder);
             return EntityApi.getEntity(dim, eid);
         }
         if (rest.startsWith("/player/") && method.equals(HttpMethod.GET))
             return EntityApi.getPlayer(dim, rest.substring(8));
+        if (rest.equals("/players") && method.equals(HttpMethod.GET))
+            return EntityApi.getPlayers(dim);
+
+        if (method.equals(HttpMethod.POST)) {
+            if (rest.equals("/blocks"))
+                return BatchApi.query(dim, body, param(q, "type", null));
+            if (rest.equals("/blockstates"))
+                return BlockApi.batchBlockStates(dim, body);
+            if (rest.equals("/blockentities"))
+                return BlockApi.batchBlockEntities(dim, body, false);
+            if (rest.equals("/blockentities/snbt"))
+                return BlockApi.batchBlockEntities(dim, body, true);
+            if (rest.equals("/blockentity/capabilities"))
+                return CapabilityApi.batchCapabilities(dim, body);
+        }
+
         return error(1002, "Not found: " + path);
     }
 

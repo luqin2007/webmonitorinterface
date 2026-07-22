@@ -1,6 +1,7 @@
 package com.example.webinterface.web.api;
 
 import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -9,10 +10,12 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraftforge.common.capabilities.ForgeCapabilities;
+import net.minecraftforge.common.capabilities.ICapabilityProvider;
 import net.minecraftforge.common.util.LazyOptional;
 import net.minecraftforge.energy.IEnergyStorage;
 import net.minecraftforge.fluids.FluidStack;
@@ -23,31 +26,73 @@ import net.minecraftforge.server.ServerLifecycleHooks;
 
 /**
  * Read-only Forge capability snapshots.
+ * Works with any ICapabilityProvider (BlockEntity, Entity, etc.).
  * No mutations (receive/extract/insert/drain) are exposed — too dangerous for a monitor API.
  */
 public final class CapabilityApi {
     private CapabilityApi() {}
 
-    public static JsonObject listCapabilities(String dimension, int x, int y, int z) {
-        BlockEntity blockEntity = blockEntity(dimension, x, y, z);
-        if (blockEntity == null) return error(1002, "Block entity not found or chunk is not loaded");
+    public static JsonObject listCapabilities(ICapabilityProvider provider) {
         JsonArray capabilities = new JsonArray();
-        addAvailability(capabilities, "energy", blockEntity.getCapability(ForgeCapabilities.ENERGY));
-        addAvailability(capabilities, "items", blockEntity.getCapability(ForgeCapabilities.ITEM_HANDLER));
-        addAvailability(capabilities, "fluid", blockEntity.getCapability(ForgeCapabilities.FLUID_HANDLER));
+        addAvailability(capabilities, "energy", provider.getCapability(ForgeCapabilities.ENERGY));
+        addAvailability(capabilities, "items", provider.getCapability(ForgeCapabilities.ITEM_HANDLER));
+        addAvailability(capabilities, "fluid", provider.getCapability(ForgeCapabilities.FLUID_HANDLER));
         JsonObject data = new JsonObject();
         data.add("capabilities", capabilities);
         return ok(data);
     }
 
     public static JsonObject getCapability(String dimension, int x, int y, int z, String name) {
-        BlockEntity blockEntity = blockEntity(dimension, x, y, z);
-        if (blockEntity == null) return error(1002, "Block entity not found or chunk is not loaded");
-        JsonObject snapshot = snapshot(blockEntity, name, null);
+        BlockEntity be = blockEntity(dimension, x, y, z);
+        if (be == null) return error(1002, "Block entity not found or chunk is not loaded");
+        return getCapability(be, name);
+    }
+
+    public static JsonObject getCapability(ICapabilityProvider provider, String name) {
+        JsonObject snapshot = snapshot(provider, name, null);
         if (snapshot == null) return error(1002, "Capability not available: " + name);
         JsonObject data = new JsonObject();
         data.addProperty("capability", normalize(name));
         data.add("snapshot", snapshot);
+        return ok(data);
+    }
+
+    public static JsonObject getEntityCapability(String dimension, int entityId, String name) {
+        ServerLevel level = level(dimension);
+        if (level == null) return error(1002, "Dimension not found: " + dimension);
+        Entity entity = level.getEntity(entityId);
+        if (entity == null) return error(1002, "Entity not found: " + entityId);
+        return getCapability(entity, name);
+    }
+
+    public static JsonObject batchCapabilities(String dimension, JsonObject body) {
+        ServerLevel level = level(dimension);
+        if (level == null) return error(1002, "Dimension not found: " + dimension);
+        JsonArray positions = body.has("positions") && body.get("positions").isJsonArray()
+                ? body.getAsJsonArray("positions") : new JsonArray();
+        if (positions.size() == 0) return error(1001, "positions array is required");
+        JsonArray results = new JsonArray();
+        for (JsonElement element : positions) {
+            if (!element.isJsonObject()) continue;
+            JsonObject p = element.getAsJsonObject();
+            int x = integer(p, "x", 0), y = integer(p, "y", 0), z = integer(p, "z", 0);
+            JsonObject entry = new JsonObject();
+            JsonObject pos = new JsonObject();
+            pos.addProperty("x", x);
+            pos.addProperty("y", y);
+            pos.addProperty("z", z);
+            entry.add("pos", pos);
+            BlockPos bp = new BlockPos(x, y, z);
+            if (level.hasChunkAt(bp)) {
+                BlockEntity be = level.getBlockEntity(bp);
+                if (be != null) {
+                    entry.add("capabilities", listCapabilities(be).get("data"));
+                }
+            }
+            results.add(entry);
+        }
+        JsonObject data = new JsonObject();
+        data.add("results", results);
         return ok(data);
     }
 
@@ -58,18 +103,18 @@ public final class CapabilityApi {
         result.add(entry);
     }
 
-    private static JsonObject snapshot(BlockEntity be, String name, Direction side) {
+    private static JsonObject snapshot(ICapabilityProvider provider, String name, Direction side) {
         return switch (normalize(name)) {
             case "energy" -> {
-                IEnergyStorage value = be.getCapability(ForgeCapabilities.ENERGY, side).orElse(null);
+                IEnergyStorage value = provider.getCapability(ForgeCapabilities.ENERGY, side).orElse(null);
                 yield value == null ? null : energySnapshot(value);
             }
             case "items" -> {
-                IItemHandler value = be.getCapability(ForgeCapabilities.ITEM_HANDLER, side).orElse(null);
+                IItemHandler value = provider.getCapability(ForgeCapabilities.ITEM_HANDLER, side).orElse(null);
                 yield value == null ? null : itemSnapshot(value);
             }
             case "fluid" -> {
-                IFluidHandler value = be.getCapability(ForgeCapabilities.FLUID_HANDLER, side).orElse(null);
+                IFluidHandler value = provider.getCapability(ForgeCapabilities.FLUID_HANDLER, side).orElse(null);
                 yield value == null ? null : fluidSnapshot(value);
             }
             default -> null;
@@ -134,7 +179,7 @@ public final class CapabilityApi {
         return level != null && level.hasChunkAt(pos) ? level.getBlockEntity(pos) : null;
     }
 
-    private static ServerLevel level(String dim) {
+    static ServerLevel level(String dim) {
         MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
         if (server == null) return null;
         return switch (dim) {
@@ -146,6 +191,11 @@ public final class CapabilityApi {
                 yield key == null ? null : server.getLevel(ResourceKey.create(Registries.DIMENSION, key));
             }
         };
+    }
+
+    private static int integer(JsonObject o, String key, int fallback) {
+        if (!o.has(key) || !o.get(key).isJsonPrimitive()) return fallback;
+        try { return o.get(key).getAsInt(); } catch (Exception e) { return fallback; }
     }
 
     private static String normalize(String name) {

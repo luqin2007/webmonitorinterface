@@ -8,9 +8,8 @@ import com.google.gson.JsonObject;
 public final class BatchApi {
     private BatchApi() {}
 
-    public static JsonObject query(JsonObject body, boolean countOnly) {
+    public static JsonObject query(String dimension, JsonObject body, String type) {
         if (body == null) body = new JsonObject();
-        String dimension = string(body, "dimension", string(body, "dim", "minecraft:overworld"));
         JsonArray positions = body.has("positions") && body.get("positions").isJsonArray()
                 ? body.getAsJsonArray("positions") : new JsonArray();
 
@@ -39,6 +38,7 @@ public final class BatchApi {
         if (positions.size() == 0) return error(1001, "positions or region is required");
 
         String filter = string(body, "filter", null);
+        if (type != null && !type.isBlank()) filter = type;
         int limit = integer(body, "limit", 4096);
         if (limit < 1) limit = 4096;
 
@@ -61,7 +61,7 @@ public final class BatchApi {
                 continue;
             }
             matched++;
-            if (!countOnly && result.size() < 1000) {
+            if (result.size() < 1000) {
                 result.add(value.get("data"));
             }
         }
@@ -69,7 +69,7 @@ public final class BatchApi {
         data.addProperty("scanned", scanned);
         data.addProperty("count", matched);
         data.addProperty("limit", limit);
-        if (!countOnly) data.add("blocks", result);
+        data.add("blocks", result);
         return ok(data);
     }
 

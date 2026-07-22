@@ -80,6 +80,31 @@ public final class EntityApi {
         return ok(data);
     }
 
+    public static JsonObject getPlayers(String dimension) {
+        MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
+        if (server == null) return error(1002, "Server not available");
+        ServerLevel level = BlockApi.level(dimension);
+        if (level == null) return error(1002, "Dimension not found: " + dimension);
+        JsonArray players = new JsonArray();
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            if (player.serverLevel() == level) {
+                JsonObject entry = new JsonObject();
+                entry.addProperty("displayName", player.getDisplayName().getString());
+                entry.addProperty("uuid", player.getUUID().toString());
+                players.add(entry);
+            }
+        }
+        JsonObject data = new JsonObject();
+        data.add("players", players);
+        return ok(data);
+    }
+
+    public static JsonObject getEntityCapability(String dimension, int entityId, String cap) {
+        ServerLevel level = BlockApi.level(dimension);
+        if (level == null) return error(1002, "Dimension not found");
+        return CapabilityApi.getEntityCapability(dimension, entityId, cap);
+    }
+
     private static JsonObject entityJson(Entity entity) {
         JsonObject o = new JsonObject();
         o.addProperty("entity_id", entity.getId());
