@@ -19,3 +19,4 @@ Thumbs.db
 
 # Generated mods.toml cache but keep source
 *.toml~
+bin/
