@@ -5,6 +5,7 @@ import com.example.webinterface.util.WorldUtil;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.mojang.serialization.JsonOps;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
@@ -13,6 +14,11 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.Property;
 import net.minecraftforge.registries.ForgeRegistries;
+
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.function.Function;
 
 import static com.example.webinterface.util.JsonUtil.*;
 
@@ -35,21 +41,29 @@ public final class BlockApi {
         return ok(data);
     }
 
-    public static JsonObject getProperty(String dimension, int x, int y, int z, String key) {
+    public static JsonObject getProperty(String dimension, int x, int y, int z, List<String> keys) {
         ServerLevel level = WorldUtil.level(dimension);
         BlockPos pos = new BlockPos(x, y, z);
         if (level == null || !level.hasChunkAt(pos))
             return error(1002, "Chunk is not loaded");
         BlockState state = level.getBlockState(pos);
+        if (keys == null || keys.isEmpty()) {
+            JsonObject data = BlockState.CODEC.encode(state, JsonOps.INSTANCE, JsonOps.INSTANCE.empty())
+                    .get()
+                    .map(Function.identity(), errorResult -> error(1002, errorResult.message()))
+                    .getAsJsonObject();
+            return ok(data);
+        }
+        Set<String> keySet = new HashSet<>(keys);
         for (Property<?> property : state.getProperties()) {
-            if (property.getName().equals(key)) {
+            String name = property.getName();
+            if (keySet.contains(name)) {
                 JsonObject data = new JsonObject();
-                data.addProperty("key", key);
-                data.addProperty("value", state.getValue(property).toString());
+                data.addProperty(name, state.getValue(property).toString());
                 return ok(data);
             }
         }
-        return error(1002, "Block state property not found: " + key);
+        return error(1002, "Block state property not found: " + keys);
     }
 
     public static JsonObject getBlockEntityNbt(String dimension, int x, int y, int z, String path, boolean snbt) {

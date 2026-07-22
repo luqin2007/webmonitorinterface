@@ -19,6 +19,7 @@ import io.netty.util.CharsetUtil;
 import net.minecraft.server.MinecraftServer;
 import net.minecraftforge.server.ServerLifecycleHooks;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -156,7 +157,7 @@ public final class RestHandler extends SimpleChannelInboundHandler<FullHttpReque
             return WorldApi.worldInfo(dim);
         }
         if (rest.equals("/blockstate") && method.equals(HttpMethod.GET))
-            return BlockApi.getProperty(dim, x, y, z, param(q, "key", null));
+            return BlockApi.getProperty(dim, x, y, z, params(q, "key"));
         if (rest.equals("/blockentity") && method.equals(HttpMethod.GET))
             return BlockApi.getBlockEntityNbt(dim, x, y, z, param(q, "path", null), false);
         if (rest.equals("/blockentity/snbt") && method.equals(HttpMethod.GET))
@@ -241,6 +242,10 @@ public final class RestHandler extends SimpleChannelInboundHandler<FullHttpReque
     private static String param(QueryStringDecoder q, String k, String d) {
         List<String> values = q.parameters().get(k);
         return values == null || values.isEmpty() ? d : values.get(0);
+    }
+    private static List<String> params(QueryStringDecoder q, String k) {
+        List<String> values = q.parameters().get(k);
+        return values == null || values.isEmpty() ? Collections.emptyList() : values;
     }
     private static int integer(QueryStringDecoder q, String k) { return integer(q, k, 0); }
     private static int integer(QueryStringDecoder q, String k, int d) {
