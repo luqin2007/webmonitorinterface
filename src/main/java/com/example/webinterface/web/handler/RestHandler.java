@@ -8,6 +8,7 @@ import com.example.webinterface.web.api.BatchApi;
 import com.example.webinterface.web.api.BlockApi;
 import com.example.webinterface.web.api.CapabilityApi;
 import com.example.webinterface.web.api.EntityApi;
+import com.example.webinterface.web.util.WorldUtil;
 import com.example.webinterface.web.MinecraftThread;
 import com.example.webinterface.web.event.events.EventCatalog;
 import com.google.gson.Gson;
@@ -153,7 +154,7 @@ public final class RestHandler extends SimpleChannelInboundHandler<FullHttpReque
         String rest = path.substring(("/api/v1/world/" + dim).length());
 
         if (rest.isEmpty() && method.equals(HttpMethod.GET)) {
-            ServerLevel level = BlockApi.level(dim);
+            ServerLevel level = WorldUtil.level(dim);
             if (level == null) return error(1002, "Dimension not found: " + dim);
             int dayTime = (int) (level.getDayTime() % 24000L);
             JsonObject d = new JsonObject();

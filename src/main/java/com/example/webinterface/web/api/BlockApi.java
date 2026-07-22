@@ -1,29 +1,24 @@
 package com.example.webinterface.web.api;
 
+import com.example.webinterface.web.util.WorldUtil;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
-import net.minecraft.resources.ResourceKey;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.Property;
 import net.minecraftforge.registries.ForgeRegistries;
-import net.minecraftforge.server.ServerLifecycleHooks;
 
 /** Block state and block-entity NBT (read-only; no method invocation). */
 public final class BlockApi {
     private BlockApi() {}
 
     public static JsonObject getBlock(String dimension, int x, int y, int z) {
-        ServerLevel level = level(dimension);
+        ServerLevel level = WorldUtil.level(dimension);
         if (level == null) return error(1002, "Dimension not found: " + dimension);
         BlockPos pos = new BlockPos(x, y, z);
         JsonObject data = new JsonObject();
@@ -38,7 +33,7 @@ public final class BlockApi {
     }
 
     public static JsonObject getProperty(String dimension, int x, int y, int z, String key) {
-        ServerLevel level = level(dimension);
+        ServerLevel level = WorldUtil.level(dimension);
         BlockPos pos = new BlockPos(x, y, z);
         if (level == null || !level.hasChunkAt(pos)) return error(1002, "Chunk is not loaded");
         BlockState state = level.getBlockState(pos);
@@ -54,7 +49,7 @@ public final class BlockApi {
     }
 
     public static JsonObject getBlockEntityNbt(String dimension, int x, int y, int z, String path, boolean snbt) {
-        ServerLevel level = level(dimension);
+        ServerLevel level = WorldUtil.level(dimension);
         BlockPos pos = new BlockPos(x, y, z);
         BlockEntity be = level != null && level.hasChunkAt(pos) ? level.getBlockEntity(pos) : null;
         if (be == null) return error(1002, "Block entity not found");
@@ -80,7 +75,7 @@ public final class BlockApi {
     }
 
     public static JsonObject batchBlockStates(String dimension, JsonObject body) {
-        ServerLevel level = level(dimension);
+        ServerLevel level = WorldUtil.level(dimension);
         if (level == null) return error(1002, "Dimension not found: " + dimension);
         JsonArray positions = body.has("positions") && body.get("positions").isJsonArray()
                 ? body.getAsJsonArray("positions") : new JsonArray();
@@ -104,7 +99,7 @@ public final class BlockApi {
     }
 
     public static JsonObject batchBlockEntities(String dimension, JsonObject body, boolean snbt) {
-        ServerLevel level = level(dimension);
+        ServerLevel level = WorldUtil.level(dimension);
         if (level == null) return error(1002, "Dimension not found: " + dimension);
         JsonArray positions = body.has("positions") && body.get("positions").isJsonArray()
                 ? body.getAsJsonArray("positions") : new JsonArray();
@@ -164,20 +159,6 @@ public final class BlockApi {
     private static int integer(JsonObject o, String key, int fallback) {
         if (!o.has(key) || !o.get(key).isJsonPrimitive()) return fallback;
         try { return o.get(key).getAsInt(); } catch (Exception e) { return fallback; }
-    }
-
-    static ServerLevel level(String dim) {
-        MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
-        if (server == null) return null;
-        return switch (dim) {
-            case "overworld", "minecraft:overworld" -> server.overworld();
-            case "nether", "minecraft:the_nether" -> server.getLevel(Level.NETHER);
-            case "end", "minecraft:the_end" -> server.getLevel(Level.END);
-            default -> {
-                ResourceLocation key = ResourceLocation.tryParse(dim);
-                yield key == null ? null : server.getLevel(ResourceKey.create(Registries.DIMENSION, key));
-            }
-        };
     }
 
     private static JsonObject ok(JsonObject data) {

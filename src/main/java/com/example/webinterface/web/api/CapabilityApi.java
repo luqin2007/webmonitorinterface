@@ -1,18 +1,14 @@
 package com.example.webinterface.web.api;
 
+import com.example.webinterface.web.util.WorldUtil;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.core.registries.Registries;
-import net.minecraft.resources.ResourceKey;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraftforge.common.capabilities.ForgeCapabilities;
 import net.minecraftforge.common.capabilities.ICapabilityProvider;
@@ -22,7 +18,6 @@ import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.fluids.capability.IFluidHandler;
 import net.minecraftforge.items.IItemHandler;
 import net.minecraftforge.registries.ForgeRegistries;
-import net.minecraftforge.server.ServerLifecycleHooks;
 
 /**
  * Read-only Forge capability snapshots.
@@ -58,7 +53,7 @@ public final class CapabilityApi {
     }
 
     public static JsonObject getEntityCapability(String dimension, int entityId, String name) {
-        ServerLevel level = level(dimension);
+        ServerLevel level = WorldUtil.level(dimension);
         if (level == null) return error(1002, "Dimension not found: " + dimension);
         Entity entity = level.getEntity(entityId);
         if (entity == null) return error(1002, "Entity not found: " + entityId);
@@ -66,7 +61,7 @@ public final class CapabilityApi {
     }
 
     public static JsonObject batchCapabilities(String dimension, JsonObject body) {
-        ServerLevel level = level(dimension);
+        ServerLevel level = WorldUtil.level(dimension);
         if (level == null) return error(1002, "Dimension not found: " + dimension);
         JsonArray positions = body.has("positions") && body.get("positions").isJsonArray()
                 ? body.getAsJsonArray("positions") : new JsonArray();
@@ -177,20 +172,6 @@ public final class CapabilityApi {
         ServerLevel level = level(dim);
         BlockPos pos = new BlockPos(x, y, z);
         return level != null && level.hasChunkAt(pos) ? level.getBlockEntity(pos) : null;
-    }
-
-    static ServerLevel level(String dim) {
-        MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
-        if (server == null) return null;
-        return switch (dim) {
-            case "overworld", "minecraft:overworld" -> server.overworld();
-            case "nether", "minecraft:the_nether" -> server.getLevel(Level.NETHER);
-            case "end", "minecraft:the_end" -> server.getLevel(Level.END);
-            default -> {
-                ResourceLocation key = ResourceLocation.tryParse(dim);
-                yield key == null ? null : server.getLevel(ResourceKey.create(Registries.DIMENSION, key));
-            }
-        };
     }
 
     private static int integer(JsonObject o, String key, int fallback) {

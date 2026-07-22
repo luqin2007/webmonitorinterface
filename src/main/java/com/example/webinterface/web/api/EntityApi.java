@@ -1,5 +1,6 @@
 package com.example.webinterface.web.api;
 
+import com.example.webinterface.web.util.WorldUtil;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import net.minecraft.server.MinecraftServer;
@@ -20,7 +21,7 @@ public final class EntityApi {
     private EntityApi() {}
 
     public static JsonObject getEntity(String dimension, int entityId) {
-        ServerLevel level = BlockApi.level(dimension);
+        ServerLevel level = WorldUtil.level(dimension);
         if (level == null) return error(1002, "Dimension not found");
         Entity entity = level.getEntity(entityId);
         return entity == null ? error(1002, "Entity not found: " + entityId) : ok(entityJson(entity));
@@ -41,7 +42,7 @@ public final class EntityApi {
             }
         }
         if (player == null) return error(1002, "Player not online: " + id);
-        if (dimension != null && !dimension.isBlank() && player.serverLevel() != BlockApi.level(dimension)) {
+        if (dimension != null && !dimension.isBlank() && player.serverLevel() != WorldUtil.level(dimension)) {
             return error(1002, "Player is not in requested dimension");
         }
         JsonObject data = entityJson(player);
@@ -58,7 +59,7 @@ public final class EntityApi {
 
     public static JsonObject getEntitiesInAABB(String dimension, double minX, double minY, double minZ,
                                                double maxX, double maxY, double maxZ, String type, int limit) {
-        ServerLevel level = BlockApi.level(dimension);
+        ServerLevel level = WorldUtil.level(dimension);
         if (level == null) return error(1002, "Dimension not found");
         if (minX > maxX || minY > maxY || minZ > maxZ) {
             return error(1001, "Minimum AABB coordinates must not exceed maximum coordinates");
@@ -83,7 +84,7 @@ public final class EntityApi {
     public static JsonObject getPlayers(String dimension) {
         MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
         if (server == null) return error(1002, "Server not available");
-        ServerLevel level = BlockApi.level(dimension);
+        ServerLevel level = WorldUtil.level(dimension);
         if (level == null) return error(1002, "Dimension not found: " + dimension);
         JsonArray players = new JsonArray();
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
@@ -100,7 +101,7 @@ public final class EntityApi {
     }
 
     public static JsonObject getEntityCapability(String dimension, int entityId, String cap) {
-        ServerLevel level = BlockApi.level(dimension);
+        ServerLevel level = WorldUtil.level(dimension);
         if (level == null) return error(1002, "Dimension not found");
         return CapabilityApi.getEntityCapability(dimension, entityId, cap);
     }
