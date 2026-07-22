@@ -146,6 +146,9 @@ dependencies {
     def nettyHttp = minecraftEmbed("io.netty:netty-codec-http:4.1.82.Final") {
         transitive = false
     }
+    minecraftLibrary("io.netty:netty-codec-http:4.1.82.Final") {
+        transitive = false
+    }
     jarJar.pin(nettyHttp, "4.1.82.Final")
     jarJar.ranged(nettyHttp, "[4.1.82.Final]")
 
@@ -154,16 +157,6 @@ dependencies {
     // http://www.gradle.org/docs/current/userguide/dependency_management.html
 }
 
-// Development runs load the mod from source directories rather than the Jar-in-Jar artifact.
-// Resolve the embedded codec only when ForgeGradle launches the run configuration.
-minecraft.runs.configureEach {
-    lazyToken('netty_http_codec') { configurations.minecraftEmbed.singleFile.absolutePath }
-    environment 'MOD_CLASSES', [
-            "${mod_id}%%${sourceSets.main.output.resourcesDir.absolutePath}",
-            "${mod_id}%%${sourceSets.main.output.classesDirs.singleFile.absolutePath}",
-            "${mod_id}%%{netty_http_codec}"
-    ].join(File.pathSeparator)
-}
 // This block of code expands all declared replace properties in the specified resource targets.
 // A missing property will result in an error. Properties are expanded using ${} Groovy notation.
 // When "copyIdeResources" is enabled, this will also run before the game launches in IDE environments.
