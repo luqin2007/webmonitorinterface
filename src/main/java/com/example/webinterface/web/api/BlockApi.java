@@ -1,6 +1,7 @@
 package com.example.webinterface.web.api;
 
-import com.example.webinterface.web.util.WorldUtil;
+import com.example.webinterface.util.NbtJson;
+import com.example.webinterface.util.WorldUtil;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -13,21 +14,23 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.Property;
 import net.minecraftforge.registries.ForgeRegistries;
 
+import static com.example.webinterface.util.JsonUtil.*;
+
 /** Block state and block-entity NBT (read-only; no method invocation). */
 public final class BlockApi {
     private BlockApi() {}
 
-    public static JsonObject getBlock(String dimension, int x, int y, int z) {
+    public static JsonObject getBlock(String dimension, BlockPos blockPos) {
         ServerLevel level = WorldUtil.level(dimension);
-        if (level == null) return error(1002, "Dimension not found: " + dimension);
-        BlockPos pos = new BlockPos(x, y, z);
+        if (level == null) return
+                error(1002, "Dimension not found: " + dimension);
         JsonObject data = new JsonObject();
-        data.addProperty("chunk_loaded", level.hasChunkAt(pos));
-        data.add("pos", pos(x, y, z));
+        data.addProperty("chunk_loaded", level.hasChunkAt(blockPos));
+        data.add("pos", pos(blockPos));
         data.addProperty("dimension", dimension);
-        if (level.hasChunkAt(pos)) {
-            data.add("state", stateJson(level.getBlockState(pos)));
-            data.add("block_entity", blockEntityJson(level.getBlockEntity(pos)));
+        if (level.hasChunkAt(blockPos)) {
+            data.add("state", stateJson(level.getBlockState(blockPos)));
+            data.add("block_entity", blockEntityJson(level.getBlockEntity(blockPos)));
         }
         return ok(data);
     }
@@ -35,7 +38,8 @@ public final class BlockApi {
     public static JsonObject getProperty(String dimension, int x, int y, int z, String key) {
         ServerLevel level = WorldUtil.level(dimension);
         BlockPos pos = new BlockPos(x, y, z);
-        if (level == null || !level.hasChunkAt(pos)) return error(1002, "Chunk is not loaded");
+        if (level == null || !level.hasChunkAt(pos))
+            return error(1002, "Chunk is not loaded");
         BlockState state = level.getBlockState(pos);
         for (Property<?> property : state.getProperties()) {
             if (property.getName().equals(key)) {
@@ -76,18 +80,19 @@ public final class BlockApi {
 
     public static JsonObject batchBlockStates(String dimension, JsonObject body) {
         ServerLevel level = WorldUtil.level(dimension);
-        if (level == null) return error(1002, "Dimension not found: " + dimension);
+        if (level == null)
+            return error(1002, "Dimension not found: " + dimension);
         JsonArray positions = body.has("positions") && body.get("positions").isJsonArray()
                 ? body.getAsJsonArray("positions") : new JsonArray();
-        if (positions.size() == 0) return error(1001, "positions array is required");
+        if (positions.isEmpty())
+            return error(1001, "positions array is required");
         JsonArray results = new JsonArray();
         for (JsonElement element : positions) {
             if (!element.isJsonObject()) continue;
             JsonObject p = element.getAsJsonObject();
-            int x = integer(p, "x", 0), y = integer(p, "y", 0), z = integer(p, "z", 0);
+            BlockPos bp = pos(p);
             JsonObject entry = new JsonObject();
-            entry.add("pos", pos(x, y, z));
-            BlockPos bp = new BlockPos(x, y, z);
+            entry.add("pos", pos(bp));
             if (level.hasChunkAt(bp)) {
                 entry.add("state", stateJson(level.getBlockState(bp)));
             }
@@ -103,15 +108,14 @@ public final class BlockApi {
         if (level == null) return error(1002, "Dimension not found: " + dimension);
         JsonArray positions = body.has("positions") && body.get("positions").isJsonArray()
                 ? body.getAsJsonArray("positions") : new JsonArray();
-        if (positions.size() == 0) return error(1001, "positions array is required");
+        if (positions.isEmpty()) return error(1001, "positions array is required");
         JsonArray results = new JsonArray();
         for (JsonElement element : positions) {
             if (!element.isJsonObject()) continue;
             JsonObject p = element.getAsJsonObject();
-            int x = integer(p, "x", 0), y = integer(p, "y", 0), z = integer(p, "z", 0);
+            BlockPos bp = pos(p);
             JsonObject entry = new JsonObject();
-            entry.add("pos", pos(x, y, z));
-            BlockPos bp = new BlockPos(x, y, z);
+            entry.add("pos", pos(bp));
             if (level.hasChunkAt(bp)) {
                 BlockEntity be = level.getBlockEntity(bp);
                 if (be != null) {
@@ -145,34 +149,6 @@ public final class BlockApi {
             o.addProperty("type", String.valueOf(ForgeRegistries.BLOCK_ENTITY_TYPES.getKey(be.getType())));
             o.add("nbt", NbtJson.toJson(be.saveWithFullMetadata()));
         }
-        return o;
-    }
-
-    private static JsonObject pos(int x, int y, int z) {
-        JsonObject o = new JsonObject();
-        o.addProperty("x", x);
-        o.addProperty("y", y);
-        o.addProperty("z", z);
-        return o;
-    }
-
-    private static int integer(JsonObject o, String key, int fallback) {
-        if (!o.has(key) || !o.get(key).isJsonPrimitive()) return fallback;
-        try { return o.get(key).getAsInt(); } catch (Exception e) { return fallback; }
-    }
-
-    private static JsonObject ok(JsonObject data) {
-        JsonObject o = new JsonObject();
-        o.addProperty("code", 0);
-        o.addProperty("msg", "ok");
-        o.add("data", data);
-        return o;
-    }
-
-    private static JsonObject error(int code, String msg) {
-        JsonObject o = new JsonObject();
-        o.addProperty("code", code);
-        o.addProperty("msg", msg);
         return o;
     }
 }

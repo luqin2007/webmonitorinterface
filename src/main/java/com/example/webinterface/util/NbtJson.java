@@ -1,4 +1,4 @@
-package com.example.webinterface.web.api;
+package com.example.webinterface.util;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;

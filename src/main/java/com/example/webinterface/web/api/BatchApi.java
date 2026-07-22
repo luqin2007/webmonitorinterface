@@ -3,6 +3,9 @@ package com.example.webinterface.web.api;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import net.minecraft.core.BlockPos;
+
+import static com.example.webinterface.util.JsonUtil.*;
 
 /** Batch block query API (read-only). */
 public final class BatchApi {
@@ -25,17 +28,15 @@ public final class BatchApi {
             for (int x = minX; x <= maxX; x++) {
                 for (int y = minY; y <= maxY; y++) {
                     for (int z = minZ; z <= maxZ; z++) {
-                        JsonObject p = new JsonObject();
-                        p.addProperty("x", x);
-                        p.addProperty("y", y);
-                        p.addProperty("z", z);
+                        JsonObject p = pos(x, y, z);
                         positions.add(p);
                         if (positions.size() >= regionCap) break outer;
                     }
                 }
             }
         }
-        if (positions.size() == 0) return error(1001, "positions or region is required");
+        if (positions.isEmpty()) return
+                error(1001, "positions or region is required");
 
         String filter = string(body, "filter", null);
         if (type != null && !type.isBlank()) filter = type;
@@ -49,11 +50,9 @@ public final class BatchApi {
             if (scanned >= limit) break;
             if (!element.isJsonObject()) continue;
             JsonObject p = element.getAsJsonObject();
-            int x = integer(p, "x", 0);
-            int y = integer(p, "y", 0);
-            int z = integer(p, "z", 0);
+            BlockPos blockPos = pos(p);
             scanned++;
-            JsonObject value = BlockApi.getBlock(dimension, x, y, z);
+            JsonObject value = BlockApi.getBlock(dimension, blockPos);
             if (value.get("code").getAsInt() != 0) continue;
             if (filter != null && !filter.isBlank()
                     && value.has("data") && value.getAsJsonObject("data").has("state")
@@ -71,29 +70,5 @@ public final class BatchApi {
         data.addProperty("limit", limit);
         data.add("blocks", result);
         return ok(data);
-    }
-
-    private static String string(JsonObject o, String key, String fallback) {
-        return o.has(key) && o.get(key).isJsonPrimitive() ? o.get(key).getAsString() : fallback;
-    }
-
-    private static int integer(JsonObject o, String key, int fallback) {
-        if (!o.has(key) || !o.get(key).isJsonPrimitive()) return fallback;
-        try { return o.get(key).getAsInt(); } catch (Exception e) { return fallback; }
-    }
-
-    public static JsonObject ok(JsonObject data) {
-        JsonObject o = new JsonObject();
-        o.addProperty("code", 0);
-        o.addProperty("msg", "ok");
-        o.add("data", data);
-        return o;
-    }
-
-    public static JsonObject error(int code, String msg) {
-        JsonObject o = new JsonObject();
-        o.addProperty("code", code);
-        o.addProperty("msg", msg);
-        return o;
     }
 }

@@ -1,4 +1,4 @@
-package com.example.webinterface.web.util;
+package com.example.webinterface.util;
 
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;

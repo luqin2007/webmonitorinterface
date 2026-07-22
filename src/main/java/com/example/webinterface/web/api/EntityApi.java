@@ -1,6 +1,7 @@
 package com.example.webinterface.web.api;
 
-import com.example.webinterface.web.util.WorldUtil;
+import com.example.webinterface.util.NbtJson;
+import com.example.webinterface.util.WorldUtil;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import net.minecraft.server.MinecraftServer;

@@ -8,7 +8,7 @@ import com.example.webinterface.web.api.BatchApi;
 import com.example.webinterface.web.api.BlockApi;
 import com.example.webinterface.web.api.CapabilityApi;
 import com.example.webinterface.web.api.EntityApi;
-import com.example.webinterface.web.util.WorldUtil;
+import com.example.webinterface.util.WorldUtil;
 import com.example.webinterface.web.MinecraftThread;
 import com.example.webinterface.web.event.events.EventCatalog;
 import com.google.gson.Gson;

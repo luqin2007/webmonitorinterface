@@ -1,6 +1,7 @@
 package com.example.webinterface.web.api;
 
-import com.example.webinterface.web.util.WorldUtil;
+import com.example.webinterface.util.NbtJson;
+import com.example.webinterface.util.WorldUtil;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -18,6 +19,9 @@ import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.fluids.capability.IFluidHandler;
 import net.minecraftforge.items.IItemHandler;
 import net.minecraftforge.registries.ForgeRegistries;
+
+import static com.example.webinterface.util.JsonUtil.*;
+import static com.example.webinterface.util.WorldUtil.level;
 
 /**
  * Read-only Forge capability snapshots.
@@ -39,13 +43,15 @@ public final class CapabilityApi {
 
     public static JsonObject getCapability(String dimension, int x, int y, int z, String name) {
         BlockEntity be = blockEntity(dimension, x, y, z);
-        if (be == null) return error(1002, "Block entity not found or chunk is not loaded");
+        if (be == null)
+            return error(1002, "Block entity not found or chunk is not loaded");
         return getCapability(be, name);
     }
 
     public static JsonObject getCapability(ICapabilityProvider provider, String name) {
         JsonObject snapshot = snapshot(provider, name, null);
-        if (snapshot == null) return error(1002, "Capability not available: " + name);
+        if (snapshot == null)
+            return error(1002, "Capability not available: " + name);
         JsonObject data = new JsonObject();
         data.addProperty("capability", normalize(name));
         data.add("snapshot", snapshot);
@@ -54,30 +60,30 @@ public final class CapabilityApi {
 
     public static JsonObject getEntityCapability(String dimension, int entityId, String name) {
         ServerLevel level = WorldUtil.level(dimension);
-        if (level == null) return error(1002, "Dimension not found: " + dimension);
+        if (level == null)
+            return error(1002, "Dimension not found: " + dimension);
         Entity entity = level.getEntity(entityId);
-        if (entity == null) return error(1002, "Entity not found: " + entityId);
+        if (entity == null)
+            return error(1002, "Entity not found: " + entityId);
         return getCapability(entity, name);
     }
 
     public static JsonObject batchCapabilities(String dimension, JsonObject body) {
         ServerLevel level = WorldUtil.level(dimension);
-        if (level == null) return error(1002, "Dimension not found: " + dimension);
+        if (level == null)
+            return error(1002, "Dimension not found: " + dimension);
         JsonArray positions = body.has("positions") && body.get("positions").isJsonArray()
                 ? body.getAsJsonArray("positions") : new JsonArray();
-        if (positions.size() == 0) return error(1001, "positions array is required");
+        if (positions.isEmpty())
+            return error(1001, "positions array is required");
         JsonArray results = new JsonArray();
         for (JsonElement element : positions) {
             if (!element.isJsonObject()) continue;
             JsonObject p = element.getAsJsonObject();
-            int x = integer(p, "x", 0), y = integer(p, "y", 0), z = integer(p, "z", 0);
+            BlockPos bp = pos(p);
             JsonObject entry = new JsonObject();
-            JsonObject pos = new JsonObject();
-            pos.addProperty("x", x);
-            pos.addProperty("y", y);
-            pos.addProperty("z", z);
+            JsonObject pos = pos(bp);
             entry.add("pos", pos);
-            BlockPos bp = new BlockPos(x, y, z);
             if (level.hasChunkAt(bp)) {
                 BlockEntity be = level.getBlockEntity(bp);
                 if (be != null) {
@@ -100,19 +106,16 @@ public final class CapabilityApi {
 
     private static JsonObject snapshot(ICapabilityProvider provider, String name, Direction side) {
         return switch (normalize(name)) {
-            case "energy" -> {
-                IEnergyStorage value = provider.getCapability(ForgeCapabilities.ENERGY, side).orElse(null);
-                yield value == null ? null : energySnapshot(value);
-            }
-            case "items" -> {
-                IItemHandler value = provider.getCapability(ForgeCapabilities.ITEM_HANDLER, side).orElse(null);
-                yield value == null ? null : itemSnapshot(value);
-            }
-            case "fluid" -> {
-                IFluidHandler value = provider.getCapability(ForgeCapabilities.FLUID_HANDLER, side).orElse(null);
-                yield value == null ? null : fluidSnapshot(value);
-            }
-            default -> null;
+            case "energy" -> provider.getCapability(ForgeCapabilities.ENERGY, side)
+                    .map(CapabilityApi::energySnapshot)
+                    .orElse(null);
+            case "items" -> provider.getCapability(ForgeCapabilities.ITEM_HANDLER, side)
+                    .map(CapabilityApi::itemSnapshot)
+                    .orElse(null);
+            case "fluid" -> provider.getCapability(ForgeCapabilities.FLUID_HANDLER, side)
+                    .map(CapabilityApi::fluidSnapshot)
+                    .orElse(null);
+            default -> null; // TODO 自定义 capability
         };
     }
 
@@ -174,11 +177,6 @@ public final class CapabilityApi {
         return level != null && level.hasChunkAt(pos) ? level.getBlockEntity(pos) : null;
     }
 
-    private static int integer(JsonObject o, String key, int fallback) {
-        if (!o.has(key) || !o.get(key).isJsonPrimitive()) return fallback;
-        try { return o.get(key).getAsInt(); } catch (Exception e) { return fallback; }
-    }
-
     private static String normalize(String name) {
         if (name == null) return "";
         return switch (name) {
@@ -187,20 +185,5 @@ public final class CapabilityApi {
             case "forge:fluid", "fluid", "fluids" -> "fluid";
             default -> name;
         };
-    }
-
-    private static JsonObject ok(JsonObject data) {
-        JsonObject o = new JsonObject();
-        o.addProperty("code", 0);
-        o.addProperty("msg", "ok");
-        o.add("data", data);
-        return o;
-    }
-
-    private static JsonObject error(int code, String message) {
-        JsonObject o = new JsonObject();
-        o.addProperty("code", code);
-        o.addProperty("msg", message);
-        return o;
     }
 }
