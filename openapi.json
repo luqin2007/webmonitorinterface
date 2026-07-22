@@ -1,0 +1,1087 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Web Monitor Interface API",
+    "version": "1.0.0",
+    "description": "Minecraft Forge mod REST API for monitoring server state, blocks, entities, players, capabilities, and events. Default listen: `127.0.0.1:18080`.\n\n## Authentication\n\n- Integrated / singleplayer: no key required.\n- Dedicated server: `Authorization: Bearer <key>` header required.\n- Rate limit: 120 req/min per key (configurable).\n\n## WebSocket\n\n- Endpoint: `ws://host:18080/ws`\n- Same bearer auth during HTTP upgrade.\n- Actions: `subscribe`, `unsubscribe`, `ping`, `publish`.\n- Events: `chat.public`, `player.join`, `player.quit`.\n\n## Response Envelope\n\nAll responses use the following envelope:\n```json\n{\"code\": 0, \"msg\": \"ok\", \"data\": {}, \"trace_id\": \"uuid\", \"server_tick\": 123}\n```\n\nError codes: `1001` bad request, `1002` not found, `2001` unauthorized, `2002` forbidden, `4001` rate limited, `3002` internal error."
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:18080",
+      "description": "Default local server"
+    }
+  ],
+  "paths": {
+    "/api/v1/status": {
+      "get": {
+        "summary": "Server status",
+        "description": "Returns server, player, web service and authentication status.",
+        "tags": ["Server"],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Server status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/ApiResponse" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": { "$ref": "#/components/schemas/StatusData" }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tps": {
+      "get": {
+        "summary": "TPS and tick metrics",
+        "tags": ["Server"],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "TPS data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/ApiResponse" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": { "$ref": "#/components/schemas/TpsData" }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/worlds": {
+      "get": {
+        "summary": "List loaded worlds",
+        "tags": ["World"],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "World list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/ApiResponse" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": { "$ref": "#/components/schemas/WorldListData" }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/events/catalog": {
+      "get": {
+        "summary": "Event catalog",
+        "description": "Lists subscribable WebSocket events with descriptions.",
+        "tags": ["Events"],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Event catalog",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/ApiResponse" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": { "$ref": "#/components/schemas/EventCatalogData" }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/world/{dim}/blockstate": {
+      "get": {
+        "summary": "Get block state property",
+        "description": "Returns a single block state property value.",
+        "tags": ["Block"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/Dim" },
+          { "$ref": "#/components/parameters/X" },
+          { "$ref": "#/components/parameters/Y" },
+          { "$ref": "#/components/parameters/Z" },
+          { "$ref": "#/components/parameters/Key" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Block property",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/ApiResponse" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": { "$ref": "#/components/schemas/BlockPropertyData" }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/world/{dim}/blockentity": {
+      "get": {
+        "summary": "Get block entity NBT",
+        "description": "Returns structured NBT for a block entity. Optionally drill into a dot-separated NBT path.",
+        "tags": ["Block"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/Dim" },
+          { "$ref": "#/components/parameters/X" },
+          { "$ref": "#/components/parameters/Y" },
+          { "$ref": "#/components/parameters/Z" },
+          { "$ref": "#/components/parameters/Path" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Block entity NBT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/ApiResponse" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "oneOf": [
+                            { "$ref": "#/components/schemas/BlockEntityFullNbtData" },
+                            { "$ref": "#/components/schemas/BlockEntityPathNbtData" }
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/world/{dim}/blockentity/snbt": {
+      "get": {
+        "summary": "Get block entity SNBT",
+        "description": "Returns SNBT string for a block entity. Optionally drill into a dot-separated NBT path.",
+        "tags": ["Block"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/Dim" },
+          { "$ref": "#/components/parameters/X" },
+          { "$ref": "#/components/parameters/Y" },
+          { "$ref": "#/components/parameters/Z" },
+          { "$ref": "#/components/parameters/Path" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Block entity SNBT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/ApiResponse" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "oneOf": [
+                            { "$ref": "#/components/schemas/BlockEntityFullSnbtData" },
+                            { "$ref": "#/components/schemas/BlockEntityPathSnbtData" }
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/world/{dim}/blockentity/capability": {
+      "get": {
+        "summary": "Get block entity capability snapshot",
+        "description": "Returns a read-only snapshot of a Forge capability (energy, items, or fluid) for a block entity.",
+        "tags": ["Capability"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/Dim" },
+          { "$ref": "#/components/parameters/X" },
+          { "$ref": "#/components/parameters/Y" },
+          { "$ref": "#/components/parameters/Z" },
+          { "$ref": "#/components/parameters/Cap" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Capability snapshot",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/ApiResponse" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": { "$ref": "#/components/schemas/CapabilitySnapshotData" }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/world/{dim}/entity/{entityId}": {
+      "get": {
+        "summary": "Get entity by runtime ID",
+        "tags": ["Entity"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/Dim" },
+          { "$ref": "#/components/parameters/EntityId" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Entity detail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/ApiResponse" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": { "$ref": "#/components/schemas/EntityData" }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/world/{dim}/entity/{entityId}/capability": {
+      "get": {
+        "summary": "Get entity capability snapshot",
+        "description": "Returns a read-only snapshot of a Forge capability for an entity.",
+        "tags": ["Capability"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/Dim" },
+          { "$ref": "#/components/parameters/EntityId" },
+          { "$ref": "#/components/parameters/Cap" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Entity capability snapshot",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/ApiResponse" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": { "$ref": "#/components/schemas/CapabilitySnapshotData" }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/world/{dim}/player/{uuidOrName}": {
+      "get": {
+        "summary": "Get online player detail",
+        "description": "Returns player info, inventory, and stats. Accepts UUID or player name.",
+        "tags": ["Player"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/Dim" },
+          { "name": "uuidOrName", "in": "path", "required": true, "schema": { "type": "string" }, "description": "Player UUID or display name" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Player detail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/ApiResponse" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": { "$ref": "#/components/schemas/PlayerDetailData" }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/world/{dim}/players": {
+      "get": {
+        "summary": "List players in dimension",
+        "description": "Returns all online players in the specified dimension.",
+        "tags": ["Player"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/Dim" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Player list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/ApiResponse" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": { "$ref": "#/components/schemas/PlayerListData" }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/world/{dim}/entities/aabb": {
+      "get": {
+        "summary": "Query entities within AABB",
+        "description": "Returns entities in an axis-aligned bounding box. Optional type filter and limit (max 1000).",
+        "tags": ["Entity"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/Dim" },
+          { "$ref": "#/components/parameters/MinX" },
+          { "$ref": "#/components/parameters/MinY" },
+          { "$ref": "#/components/parameters/MinZ" },
+          { "$ref": "#/components/parameters/MaxX" },
+          { "$ref": "#/components/parameters/MaxY" },
+          { "$ref": "#/components/parameters/MaxZ" },
+          { "$ref": "#/components/parameters/EntityType" },
+          { "$ref": "#/components/parameters/Limit" }
+        ],
+        "responses": {
+          "200": {
+            "description": "AABB query result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/ApiResponse" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": { "$ref": "#/components/schemas/AabbResultData" }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/world/{dim}/blocks": {
+      "post": {
+        "summary": "Batch block query",
+        "description": "Batch query blocks by positions array or region. Optional `filter` in body or `?type=` query param to filter by block ID. Max 4096 scanned, max 1000 returned.",
+        "tags": ["Block", "Batch"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/Dim" },
+          { "name": "type", "in": "query", "required": false, "schema": { "type": "string" }, "description": "Block ID filter (e.g. minecraft:chest). Overrides body `filter`." }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/BatchRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Batch query result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/ApiResponse" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": { "$ref": "#/components/schemas/BatchResultData" }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/world/{dim}/blockstates": {
+      "post": {
+        "summary": "Batch block state query",
+        "description": "Batch query block states by positions array. Returns state for each position.",
+        "tags": ["Block", "Batch"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/Dim" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/PositionsRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Batch state result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/ApiResponse" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": { "$ref": "#/components/schemas/BatchStateResultData" }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/world/{dim}/blockentities": {
+      "post": {
+        "summary": "Batch block entity NBT query",
+        "description": "Batch query block entity structured NBT by positions array.",
+        "tags": ["Block", "Batch"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/Dim" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/PositionsRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Batch entity NBT result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/ApiResponse" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": { "$ref": "#/components/schemas/BatchEntityNbtResultData" }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/world/{dim}/blockentities/snbt": {
+      "post": {
+        "summary": "Batch block entity SNBT query",
+        "description": "Batch query block entity SNBT strings by positions array.",
+        "tags": ["Block", "Batch"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/Dim" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/PositionsRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Batch entity SNBT result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/ApiResponse" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": { "$ref": "#/components/schemas/BatchEntitySnbtResultData" }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/world/{dim}/blockentity/capabilities": {
+      "post": {
+        "summary": "Batch block entity capability query",
+        "description": "Batch query capability availability lists by positions array.",
+        "tags": ["Capability", "Batch"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/Dim" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/PositionsRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Batch capability result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/ApiResponse" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": { "$ref": "#/components/schemas/BatchCapabilityResultData" }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "API key via Authorization: Bearer <key>"
+      }
+    },
+    "parameters": {
+      "Dim": { "name": "dim", "in": "path", "required": true, "schema": { "type": "string" }, "description": "Dimension identifier, e.g. minecraft:overworld, minecraft:the_nether, minecraft:the_end, or a custom dimension resource location" },
+      "X": { "name": "x", "in": "query", "required": true, "schema": { "type": "integer" }, "description": "Block X coordinate" },
+      "Y": { "name": "y", "in": "query", "required": true, "schema": { "type": "integer" }, "description": "Block Y coordinate" },
+      "Z": { "name": "z", "in": "query", "required": true, "schema": { "type": "integer" }, "description": "Block Z coordinate" },
+      "Key": { "name": "key", "in": "query", "required": true, "schema": { "type": "string" }, "description": "Block state property name" },
+      "Path": { "name": "path", "in": "query", "required": false, "schema": { "type": "string" }, "description": "Dot-separated NBT path (e.g. \"Items.0.tag\")" },
+      "Cap": { "name": "cap", "in": "query", "required": true, "schema": { "type": "string" }, "description": "Capability name: energy, items, or fluid" },
+      "EntityId": { "name": "entityId", "in": "path", "required": true, "schema": { "type": "integer" }, "description": "Runtime entity ID" },
+      "MinX": { "name": "minX", "in": "query", "required": true, "schema": { "type": "number", "format": "double" } },
+      "MinY": { "name": "minY", "in": "query", "required": true, "schema": { "type": "number", "format": "double" } },
+      "MinZ": { "name": "minZ", "in": "query", "required": true, "schema": { "type": "number", "format": "double" } },
+      "MaxX": { "name": "maxX", "in": "query", "required": true, "schema": { "type": "number", "format": "double" } },
+      "MaxY": { "name": "maxY", "in": "query", "required": true, "schema": { "type": "number", "format": "double" } },
+      "MaxZ": { "name": "maxZ", "in": "query", "required": true, "schema": { "type": "number", "format": "double" } },
+      "EntityType": { "name": "type", "in": "query", "required": false, "schema": { "type": "string" }, "description": "Entity type filter (e.g. minecraft:pig)" },
+      "Limit": { "name": "limit", "in": "query", "required": false, "schema": { "type": "integer", "maximum": 1000, "default": 50 }, "description": "Max entities to return (capped at 1000)" }
+    },
+    "schemas": {
+      "ApiResponse": {
+        "type": "object",
+        "required": ["code", "msg", "trace_id", "server_tick"],
+        "properties": {
+          "code": { "type": "integer", "description": "0 = success, non-zero = error code" },
+          "msg": { "type": "string", "description": "ok on success, error message on failure" },
+          "data": { "description": "Response payload (present only on success)" },
+          "trace_id": { "type": "string", "format": "uuid", "description": "Unique request trace ID" },
+          "server_tick": { "type": "integer", "description": "Server tick count at response time" }
+        }
+      },
+      "StatusData": {
+        "type": "object",
+        "properties": {
+          "running": { "type": "boolean" },
+          "players": { "type": "integer" },
+          "max_players": { "type": "integer" },
+          "motd": { "type": "string" },
+          "version": { "type": "string" },
+          "dedicated": { "type": "boolean" },
+          "auth_required": { "type": "boolean" },
+          "web_running": { "type": "boolean" },
+          "web_port": { "type": "integer" }
+        }
+      },
+      "TpsData": {
+        "type": "object",
+        "properties": {
+          "tps": { "type": "number", "format": "double" },
+          "average_tick_ms": { "type": "number", "format": "double" },
+          "tick_count": { "type": "integer" }
+        }
+      },
+      "WorldListData": {
+        "type": "object",
+        "properties": {
+          "worlds": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/WorldEntry" }
+          }
+        }
+      },
+      "WorldEntry": {
+        "type": "object",
+        "properties": {
+          "dimension": { "type": "string", "description": "Dimension resource location" },
+          "loaded_chunks": { "type": "integer" },
+          "difficulty": { "type": "string" }
+        }
+      },
+      "EventCatalogData": {
+        "type": "object",
+        "properties": {
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": { "type": "string" },
+                "description": { "type": "string" }
+              }
+            }
+          }
+        }
+      },
+      "BlockPropertyData": {
+        "type": "object",
+        "properties": {
+          "key": { "type": "string" },
+          "value": { "type": "string" }
+        }
+      },
+      "BlockEntityFullNbtData": {
+        "type": "object",
+        "properties": {
+          "nbt": { "description": "Structured NBT object" }
+        }
+      },
+      "BlockEntityPathNbtData": {
+        "type": "object",
+        "properties": {
+          "path": { "type": "string" },
+          "value": { "description": "Value at the specified NBT path (structured object)" }
+        }
+      },
+      "BlockEntityFullSnbtData": {
+        "type": "object",
+        "properties": {
+          "nbt": { "type": "string", "description": "SNBT string" }
+        }
+      },
+      "BlockEntityPathSnbtData": {
+        "type": "object",
+        "properties": {
+          "path": { "type": "string" },
+          "value": { "type": "string", "description": "SNBT value at the specified NBT path" }
+        }
+      },
+      "CapabilitySnapshotData": {
+        "type": "object",
+        "properties": {
+          "capability": { "type": "string" },
+          "snapshot": {
+            "oneOf": [
+              { "$ref": "#/components/schemas/EnergySnapshot" },
+              { "$ref": "#/components/schemas/ItemHandlerSnapshot" },
+              { "$ref": "#/components/schemas/FluidHandlerSnapshot" }
+            ]
+          }
+        }
+      },
+      "EnergySnapshot": {
+        "type": "object",
+        "properties": {
+          "stored": { "type": "integer" },
+          "capacity": { "type": "integer" },
+          "can_receive": { "type": "boolean" },
+          "can_extract": { "type": "boolean" }
+        }
+      },
+      "ItemHandlerSnapshot": {
+        "type": "object",
+        "properties": {
+          "slots": { "type": "integer" },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "slot": { "type": "integer" },
+                "limit": { "type": "integer" },
+                "id": { "type": "string" },
+                "count": { "type": "integer" },
+                "nbt": { "description": "Optional item NBT" }
+              }
+            }
+          }
+        }
+      },
+      "FluidHandlerSnapshot": {
+        "type": "object",
+        "properties": {
+          "tanks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "tank": { "type": "integer" },
+                "capacity": { "type": "integer" },
+                "id": { "type": "string" },
+                "amount": { "type": "integer" },
+                "nbt": { "description": "Optional fluid NBT" }
+              }
+            }
+          }
+        }
+      },
+      "EntityData": {
+        "type": "object",
+        "properties": {
+          "entity_id": { "type": "integer" },
+          "uuid": { "type": "string", "format": "uuid" },
+          "type": { "type": "string" },
+          "custom_name": { "type": "string" },
+          "alive": { "type": "boolean" },
+          "on_ground": { "type": "boolean" },
+          "pos": { "$ref": "#/components/schemas/EntityPos" },
+          "rotation": { "$ref": "#/components/schemas/Rotation" },
+          "health": { "type": "number", "format": "double" },
+          "max_health": { "type": "number", "format": "double" },
+          "hurt_time": { "type": "integer" }
+        }
+      },
+      "EntityPos": {
+        "type": "object",
+        "properties": {
+          "x": { "type": "number", "format": "double" },
+          "y": { "type": "number", "format": "double" },
+          "z": { "type": "number", "format": "double" }
+        }
+      },
+      "Rotation": {
+        "type": "object",
+        "properties": {
+          "yaw": { "type": "number", "format": "float" },
+          "pitch": { "type": "number", "format": "float" }
+        }
+      },
+      "PlayerDetailData": {
+        "allOf": [
+          { "$ref": "#/components/schemas/EntityData" },
+          {
+            "type": "object",
+            "properties": {
+              "inventory": { "$ref": "#/components/schemas/Inventory" },
+              "gamemode": { "type": "string" },
+              "food": { "type": "integer" },
+              "saturation": { "type": "number", "format": "float" }
+            }
+          }
+        ]
+      },
+      "Inventory": {
+        "type": "object",
+        "properties": {
+          "main": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/InventorySlot" }
+          },
+          "armor": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/InventorySlot" }
+          },
+          "offhand": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/InventorySlot" }
+          }
+        }
+      },
+      "InventorySlot": {
+        "type": "object",
+        "properties": {
+          "slot": { "type": "integer" },
+          "id": { "type": "string" },
+          "count": { "type": "integer" },
+          "nbt": { "description": "Optional item NBT" }
+        }
+      },
+      "PlayerListData": {
+        "type": "object",
+        "properties": {
+          "players": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "displayName": { "type": "string" },
+                "uuid": { "type": "string", "format": "uuid" }
+              }
+            }
+          }
+        }
+      },
+      "AabbResultData": {
+        "type": "object",
+        "properties": {
+          "total": { "type": "integer", "description": "Matching entities count" },
+          "returned": { "type": "integer", "description": "Entities returned in this response" },
+          "entities": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/EntityData" }
+          }
+        }
+      },
+      "BatchRequest": {
+        "type": "object",
+        "description": "Either `positions` array or `region` object is required.",
+        "properties": {
+          "positions": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/BlockPos" },
+            "description": "Explicit block positions"
+          },
+          "region": {
+            "type": "object",
+            "properties": {
+              "minX": { "type": "integer" },
+              "maxX": { "type": "integer" },
+              "minY": { "type": "integer" },
+              "maxY": { "type": "integer" },
+              "minZ": { "type": "integer" },
+              "maxZ": { "type": "integer" }
+            },
+            "description": "Cuboid region (expands to at most 4096 positions)"
+          },
+          "filter": {
+            "type": "string",
+            "description": "Block ID filter (e.g. minecraft:chest). Overridden by ?type= query param."
+          },
+          "limit": {
+            "type": "integer",
+            "default": 4096,
+            "description": "Max positions to scan (capped at 4096)"
+          }
+        }
+      },
+      "PositionsRequest": {
+        "type": "object",
+        "required": ["positions"],
+        "properties": {
+          "positions": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/BlockPos" },
+            "description": "Explicit block positions array"
+          }
+        }
+      },
+      "BlockPos": {
+        "type": "object",
+        "properties": {
+          "x": { "type": "integer" },
+          "y": { "type": "integer" },
+          "z": { "type": "integer" }
+        }
+      },
+      "BatchResultData": {
+        "type": "object",
+        "properties": {
+          "scanned": { "type": "integer" },
+          "count": { "type": "integer" },
+          "limit": { "type": "integer" },
+          "blocks": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/BlockData" }
+          }
+        }
+      },
+      "BlockData": {
+        "type": "object",
+        "properties": {
+          "chunk_loaded": { "type": "boolean" },
+          "pos": { "$ref": "#/components/schemas/BlockPos" },
+          "dimension": { "type": "string" },
+          "state": { "$ref": "#/components/schemas/BlockState" },
+          "block_entity": { "$ref": "#/components/schemas/BlockEntity" }
+        }
+      },
+      "BlockState": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "description": "Block registry ID" },
+          "properties": {
+            "type": "object",
+            "additionalProperties": { "type": "string" },
+            "description": "Block state property key-value pairs"
+          }
+        }
+      },
+      "BlockEntity": {
+        "type": "object",
+        "properties": {
+          "exists": { "type": "boolean" },
+          "type": { "type": "string", "description": "Block entity type registry ID" },
+          "nbt": { "description": "Structured NBT data" }
+        }
+      },
+      "BatchStateResultData": {
+        "type": "object",
+        "properties": {
+          "results": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "pos": { "$ref": "#/components/schemas/BlockPos" },
+                "state": { "$ref": "#/components/schemas/BlockState" }
+              }
+            }
+          }
+        }
+      },
+      "BatchEntityNbtResultData": {
+        "type": "object",
+        "properties": {
+          "results": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "pos": { "$ref": "#/components/schemas/BlockPos" },
+                "nbt": { "description": "Structured NBT object" }
+              }
+            }
+          }
+        }
+      },
+      "BatchEntitySnbtResultData": {
+        "type": "object",
+        "properties": {
+          "results": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "pos": { "$ref": "#/components/schemas/BlockPos" },
+                "nbt": { "type": "string", "description": "SNBT string" }
+              }
+            }
+          }
+        }
+      },
+      "BatchCapabilityResultData": {
+        "type": "object",
+        "properties": {
+          "results": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "pos": { "$ref": "#/components/schemas/BlockPos" },
+                "capabilities": {
+                  "type": "object",
+                  "properties": {
+                    "capabilities": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": { "type": "string" },
+                          "available": { "type": "boolean" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
