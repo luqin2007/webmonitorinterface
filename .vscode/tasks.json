@@ -32,8 +32,11 @@
       "problemMatcher": {
         "owner": "java",
         "pattern": {
-          "regexp": "^(.*)$",
-          "message": 1
+          "regexp": "^(.+\\.java):(\\d+): (error|warning): (.+)$",
+          "file": 1,
+          "line": 2,
+          "severity": 3,
+          "message": 4
         },
         "background": {
           "activeOnStart": true,
