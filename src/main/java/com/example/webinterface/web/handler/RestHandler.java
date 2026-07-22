@@ -4,12 +4,8 @@ import com.example.webinterface.WebMonitorMod;
 import com.example.webinterface.model.ServerState;
 import com.example.webinterface.security.ApiKey;
 import com.example.webinterface.security.KeyManager;
-import com.example.webinterface.web.api.BatchApi;
-import com.example.webinterface.web.api.BlockApi;
-import com.example.webinterface.web.api.CapabilityApi;
-import com.example.webinterface.web.api.EntityApi;
-import com.example.webinterface.util.WorldUtil;
 import com.example.webinterface.web.MinecraftThread;
+import com.example.webinterface.web.api.*;
 import com.example.webinterface.web.event.events.EventCatalog;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
@@ -21,13 +17,15 @@ import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.codec.http.*;
 import io.netty.util.CharsetUtil;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraftforge.server.ServerLifecycleHooks;
 
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+
+import static com.example.webinterface.util.JsonUtil.error;
+import static com.example.webinterface.util.JsonUtil.ok;
 
 /**
  * REST v1 routing. Auth is API-key based:
@@ -148,29 +146,15 @@ public final class RestHandler extends SimpleChannelInboundHandler<FullHttpReque
 
     private JsonObject worldRoute(HttpMethod method, String path, QueryStringDecoder q, JsonObject body) {
         String[] p = path.split("/");
-        if (p.length < 6) return error(1002, "Not found: " + path);
+        if (p.length < 5)
+            return error(1002, "Not found: " + path);
         String dim = p[4];
         int x = integer(q, "x"), y = integer(q, "y"), z = integer(q, "z");
         String rest = path.substring(("/api/v1/world/" + dim).length());
 
         if (rest.isEmpty() && method.equals(HttpMethod.GET)) {
-            ServerLevel level = WorldUtil.level(dim);
-            if (level == null) return error(1002, "Dimension not found: " + dim);
-            int dayTime = (int) (level.getDayTime() % 24000L);
-            JsonObject d = new JsonObject();
-            d.addProperty("dimension", level.dimension().location().toString());
-            d.addProperty("day_time", dayTime);
-            d.addProperty("game_time", level.getGameTime());
-            d.addProperty("is_raining", level.isRaining());
-            d.addProperty("is_thundering", level.isThundering());
-            d.addProperty("rain_level", level.getRainLevel(1.0F));
-            d.addProperty("thunder_level", level.getThunderLevel(1.0F));
-            d.addProperty("difficulty", level.getDifficulty().getKey());
-            d.addProperty("loaded_chunks", level.getChunkSource().getLoadedChunksCount());
-            d.addProperty("hardcore", level.getLevelData().isHardcore());
-            return ok(d);
+            return WorldApi.worldInfo(dim);
         }
-
         if (rest.equals("/blockstate") && method.equals(HttpMethod.GET))
             return BlockApi.getProperty(dim, x, y, z, param(q, "key", null));
         if (rest.equals("/blockentity") && method.equals(HttpMethod.GET))
@@ -269,19 +253,6 @@ public final class RestHandler extends SimpleChannelInboundHandler<FullHttpReque
         try { return Integer.parseInt(s); } catch (NumberFormatException e) { return -1; }
     }
 
-    private static JsonObject ok(JsonObject d) {
-        JsonObject o = new JsonObject();
-        o.addProperty("code", 0);
-        o.addProperty("msg", "ok");
-        o.add("data", d);
-        return o;
-    }
-    private static JsonObject error(int c, String m) {
-        JsonObject o = new JsonObject();
-        o.addProperty("code", c);
-        o.addProperty("msg", m);
-        return o;
-    }
     private static String errorJson(int c, String m) { return GSON.toJson(error(c, m)); }
 
     private static HttpResponseStatus status(JsonObject response) {
